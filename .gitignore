@@ -1,0 +1,11 @@
+/target
+/dist
+/result
+**/*.rs.bk
+.DS_Store
+*.swp
+/man/*.1
+.idea/
+.vscode/
+*.pdb
+.direnv/

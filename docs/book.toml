@@ -1,0 +1,9 @@
+[book]
+title = "git-gist"
+description = "Run git across all child repositories"
+authors = ["git-gist contributors"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/chtnnh/git-gist"

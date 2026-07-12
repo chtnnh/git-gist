@@ -1,0 +1,26 @@
+# Example global config — copy to ~/.config/git-gist/config.toml
+
+schema_version = 1
+depth = 6
+# jobs = 8
+# theme = "default"
+ignore = [
+  "**/node_modules/**",
+  "**/target/**",
+  "**/.cache/**",
+  "**/vendor/**",
+]
+
+# [aliases]
+# api = "/home/you/src/api"
+
+# [groups]
+# work = ["api"]
+
+# [remotes]
+# company = "git@github.com:company/"
+
+# [profiles.default]
+# default_branch = "main"
+# user_name = "Your Name"
+# user_email = "you@example.com"

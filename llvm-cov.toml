@@ -1,0 +1,6 @@
+fail_under_lines = 95
+
+# Exclude the thin binary entrypoint from the denominator
+exclude_files = [
+  "src/main.rs",
+]

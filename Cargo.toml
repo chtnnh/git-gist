@@ -1,0 +1,99 @@
+[package]
+name = "git-gist"
+version = "1.0.0"
+edition = "2021"
+description = "Run git commands across all child git repositories — fast multi-repo CLI"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/chtnnh/git-gist"
+homepage = "https://github.com/chtnnh/git-gist"
+keywords = ["git", "cli", "multi-repo", "monorepo", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["git-gist contributors"]
+rust-version = "1.75"
+
+[[bin]]
+name = "gg"
+path = "src/main.rs"
+
+[lib]
+name = "git_gist"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "env", "color", "wrap_help"] }
+clap_complete = "4.5"
+clap_mangen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+dirs = "6.0"
+jwalk = "0.8"
+rayon = "1.10"
+num_cpus = "1.16"
+owo-colors = "4.1"
+comfy-table = "7.1"
+thiserror = "2.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.11"
+globset = "0.4"
+which = "7.0"
+
+[dev-dependencies]
+tempfile = "3.14"
+assert_cmd = "2.0"
+predicates = "3.1"
+serial_test = "3.2"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+[package.metadata.dist]
+dist = true
+formula = "git-gist"
+installers = ["shell", "homebrew"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
+ci = "github"
+unix-archive = ".tar.gz"
+windows-archive = ".zip"
+
+[package.metadata.deb]
+maintainer = "git-gist contributors"
+copyright = "2026 git-gist contributors"
+license-file = ["LICENSE", "0"]
+extended-description = """git-gist (gg) discovers child git repositories and runs
+git commands or built-in insights across them in parallel."""
+section = "utils"
+priority = "optional"
+assets = [
+  ["target/release/gg", "usr/bin/", "755"],
+  ["README.md", "usr/share/doc/git-gist/", "644"],
+  ["LICENSE", "usr/share/doc/git-gist/", "644"],
+  ["shell/gg.bash", "usr/share/git-gist/shell/", "644"],
+  ["shell/gg.zsh", "usr/share/git-gist/shell/", "644"],
+  ["shell/gg.fish", "usr/share/git-gist/shell/", "644"],
+  ["shell/gg.sh", "usr/share/git-gist/shell/", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/gg", dest = "/usr/bin/gg", mode = "755" },
+  { source = "README.md", dest = "/usr/share/doc/git-gist/README.md", mode = "644", doc = true },
+  { source = "LICENSE", dest = "/usr/share/doc/git-gist/LICENSE", mode = "644", doc = true },
+  { source = "shell/gg.bash", dest = "/usr/share/git-gist/shell/gg.bash", mode = "644" },
+  { source = "shell/gg.zsh", dest = "/usr/share/git-gist/shell/gg.zsh", mode = "644" },
+  { source = "shell/gg.fish", dest = "/usr/share/git-gist/shell/gg.fish", mode = "644" },
+]
