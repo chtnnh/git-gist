@@ -286,4 +286,21 @@ mod tests {
         let repo = PathBuf::from("/watch/nested/foo");
         assert_eq!(unique_alias_name(&repo, &root, &used), "nested-foo");
     }
+
+    #[test]
+    fn unique_names_numeric_suffix_and_sanitize() {
+        let mut used = BTreeSet::new();
+        used.insert("foo".into());
+        used.insert("nested-foo".into());
+        used.insert("watch-foo".into());
+        let root = PathBuf::from("/watch");
+        let repo = PathBuf::from("/watch/nested/foo");
+        assert_eq!(unique_alias_name(&repo, &root, &used), "foo-2");
+
+        used.insert("foo-2".into());
+        assert_eq!(unique_alias_name(&repo, &root, &used), "foo-3");
+
+        assert_eq!(sanitize_alias("my repo!"), "my-repo");
+        assert_eq!(sanitize_alias("---"), "");
+    }
 }

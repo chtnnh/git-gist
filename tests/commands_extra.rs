@@ -387,3 +387,116 @@ groups = ["lab"]
         .success()
         .stdout(predicates::str::contains("no changes").or(predicates::str::contains("0 new")));
 }
+
+#[test]
+fn update_fails_without_rules_and_supports_json() {
+    let f = Fixture::new();
+    f.write_global_config("schema_version = 1\n");
+    f.gg().args(["update"]).assert().failure();
+
+    let watch = f.root.path().join("empty-watch");
+    fs::create_dir_all(&watch).unwrap();
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[[auto_enroll]]
+path = "{}"
+depth = 2
+"#,
+        Fixture::toml_path(&watch)
+    ));
+    f.gg()
+        .args(["--format", "json", "update"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("\"added\""));
+}
+
+#[test]
+fn update_repairs_membership_and_skips_missing_roots() {
+    let mut f = Fixture::new();
+    let watch = f.root.path().join("enroll-fix");
+    fs::create_dir_all(&watch).unwrap();
+    let repo = watch.join("gamma");
+    fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-b", "main"]);
+    fs::write(repo.join("README"), "x\n").unwrap();
+    git(&repo, &["add", "README"]);
+    git(&repo, &["commit", "-m", "init"]);
+    f.repos.push(repo.clone());
+
+    // Alias exists but is not in the group/tag yet; also include a missing watch path.
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[aliases]
+gamma = "{repo}"
+
+[[auto_enroll]]
+path = "{missing}"
+depth = 2
+groups = ["gone"]
+
+[[auto_enroll]]
+path = "{watch}"
+depth = 0
+groups = ["lab"]
+tags = ["learn"]
+"#,
+        repo = Fixture::toml_path(&repo),
+        missing = Fixture::toml_path(&f.root.path().join("does-not-exist")),
+        watch = Fixture::toml_path(&watch),
+    ));
+
+    f.gg()
+        .args(["update", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("would update"));
+
+    f.gg()
+        .args(["update"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("updated"));
+
+    f.gg()
+        .args(["-g", "lab", "list", "--refresh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("gamma"));
+}
+
+#[test]
+fn update_enrolls_without_groups_or_tags() {
+    let mut f = Fixture::new();
+    let watch = f.root.path().join("plain");
+    let repo = watch.join("solo");
+    fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-b", "main"]);
+    fs::write(repo.join("README"), "x\n").unwrap();
+    git(&repo, &["add", "README"]);
+    git(&repo, &["commit", "-m", "init"]);
+    f.repos.push(repo);
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[[auto_enroll]]
+path = "{}"
+depth = 2
+"#,
+        Fixture::toml_path(&watch)
+    ));
+
+    f.gg()
+        .args(["update"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("added"));
+    f.gg()
+        .args(["alias", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("solo"));
+}
