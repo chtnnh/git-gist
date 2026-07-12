@@ -9,3 +9,4 @@
 .vscode/
 *.pdb
 .direnv/
+/docs/book/
