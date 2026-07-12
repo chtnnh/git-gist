@@ -1,7 +1,7 @@
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::exec;
-use crate::output::OutputCtx;
+use crate::output::{CellStyle, OutputCtx};
 use crate::repo::{self, Repo};
 use anyhow::Result;
 use serde::Serialize;
@@ -67,26 +67,28 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
         return Ok(());
     }
 
-    let table: Vec<Vec<String>> = rows
+    let table: Vec<Vec<_>> = rows
         .iter()
         .map(|r| {
+            let tree = if r.dirty { "dirty" } else { "clean" };
+            let ab = format!("{}/{}", r.ahead, r.behind);
+            let pull = if r.pulled { "pulled" } else { "-" };
             vec![
-                r.name.clone(),
-                r.branch.clone(),
-                if r.dirty {
-                    "dirty".into()
-                } else {
-                    "clean".into()
-                },
-                format!("{}/{}", r.ahead, r.behind),
-                if r.pulled {
-                    "pulled".into()
-                } else {
-                    "-".into()
-                },
+                out.cell(&r.name, CellStyle::Plain),
+                out.cell(&r.branch, CellStyle::Plain),
+                out.cell(tree, OutputCtx::tree_style(r.dirty)),
+                out.cell(ab, OutputCtx::ahead_behind_style(r.ahead, r.behind)),
+                out.cell(
+                    pull,
+                    if r.pulled {
+                        CellStyle::Good
+                    } else {
+                        CellStyle::Dim
+                    },
+                ),
             ]
         })
         .collect();
-    out.print_table(&["repo", "branch", "tree", "↑/↓", "pull"], table)?;
+    out.print_table_cells(&["repo", "branch", "tree", "↑/↓", "pull"], table)?;
     Ok(())
 }

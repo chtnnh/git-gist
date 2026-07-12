@@ -1,6 +1,6 @@
 use crate::cli::Cli;
 use crate::config::Config;
-use crate::output::OutputCtx;
+use crate::output::{CellStyle, OutputCtx};
 use crate::repo::{self, Repo};
 use anyhow::Result;
 use rayon::prelude::*;
@@ -17,6 +17,10 @@ struct OverviewRow {
     upstream: Option<String>,
     age: Option<String>,
     in_progress: Option<String>,
+    #[serde(skip)]
+    age_secs: Option<u64>,
+    #[serde(skip)]
+    detached: bool,
 }
 
 pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Result<()> {
@@ -43,6 +47,8 @@ pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Re
                 upstream: status.upstream,
                 age: status.last_commit_age_secs.map(repo::format_age),
                 in_progress: status.in_progress,
+                age_secs: status.last_commit_age_secs,
+                detached: status.detached,
             }
         })
         .collect();
@@ -55,25 +61,35 @@ pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Re
         return Ok(());
     }
 
-    let table_rows: Vec<Vec<String>> = rows
+    let table_rows: Vec<Vec<_>> = rows
         .iter()
         .map(|r| {
+            let tree = if r.dirty { "dirty" } else { "clean" };
+            let ab = format!("{}/{}", r.ahead, r.behind);
+            let age = r.age.clone().unwrap_or_else(|| "-".into());
+            let state = r.in_progress.clone().unwrap_or_else(|| "-".into());
+            let branch_style = if r.detached {
+                CellStyle::Warn
+            } else {
+                CellStyle::Plain
+            };
+            let state_style = if r.in_progress.is_some() {
+                CellStyle::Bad
+            } else {
+                CellStyle::Dim
+            };
             vec![
-                r.name.clone(),
-                r.branch.clone(),
-                if r.dirty {
-                    "dirty".into()
-                } else {
-                    "clean".into()
-                },
-                format!("{}/{}", r.ahead, r.behind),
-                r.age.clone().unwrap_or_else(|| "-".into()),
-                r.in_progress.clone().unwrap_or_else(|| "-".into()),
+                out.cell(&r.name, CellStyle::Plain),
+                out.cell(&r.branch, branch_style),
+                out.cell(tree, OutputCtx::tree_style(r.dirty)),
+                out.cell(ab, OutputCtx::ahead_behind_style(r.ahead, r.behind)),
+                out.cell(age, OutputCtx::age_style(r.age_secs)),
+                out.cell(state, state_style),
             ]
         })
         .collect();
 
-    out.print_table(
+    out.print_table_cells(
         &["repo", "branch", "tree", "↑/↓", "age", "state"],
         table_rows,
     )?;

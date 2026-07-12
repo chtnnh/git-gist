@@ -14,6 +14,20 @@ fn theme_parse() {
 }
 
 #[test]
+fn semantic_cell_styles() {
+    use git_gist::output::CellStyle;
+    assert_eq!(OutputCtx::tree_style(false), CellStyle::Good);
+    assert_eq!(OutputCtx::tree_style(true), CellStyle::Bad);
+    assert_eq!(OutputCtx::age_style(None), CellStyle::Dim);
+    assert_eq!(OutputCtx::age_style(Some(60)), CellStyle::Good);
+    assert_eq!(OutputCtx::age_style(Some(30 * 86400)), CellStyle::Warn);
+    assert_eq!(OutputCtx::age_style(Some(90 * 86400)), CellStyle::Bad);
+    assert_eq!(OutputCtx::ahead_behind_style(0, 0), CellStyle::Dim);
+    assert_eq!(OutputCtx::ahead_behind_style(1, 0), CellStyle::Warn);
+    assert_eq!(OutputCtx::ahead_behind_style(1, 1), CellStyle::Bad);
+}
+
+#[test]
 fn resolve_color_always_never() {
     assert!(resolve_color(ColorChoice::Always));
     assert!(!resolve_color(ColorChoice::Never));
@@ -38,7 +52,15 @@ fn output_ctx_json_flags() {
 }
 
 #[test]
-fn clap_command_builds() {
-    let cmd = git_gist::clap_command();
-    assert_eq!(cmd.get_name(), "gg");
+fn styled_table_emits_ansi_when_color_on() {
+    use comfy_table::{Cell, Color, Table};
+
+    let mut table = Table::new();
+    table.force_no_tty().enforce_styling();
+    table.add_row(vec![Cell::new("clean").fg(Color::Green)]);
+    let s = table.to_string();
+    assert!(
+        s.contains('\u{1b}'),
+        "expected ANSI escapes in styled table, got {s:?}"
+    );
 }

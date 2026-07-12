@@ -1,6 +1,6 @@
 use crate::cli::Cli;
 use crate::config::Config;
-use crate::output::OutputCtx;
+use crate::output::{CellStyle, OutputCtx};
 use crate::repo::{self, Repo};
 use anyhow::Result;
 use serde::Serialize;
@@ -53,17 +53,21 @@ pub fn run(
         return Ok(());
     }
 
-    let table: Vec<Vec<String>> = rows
+    let table: Vec<Vec<_>> = rows
         .iter()
         .map(|r| {
+            let age_secs = Some(r.age_days.saturating_mul(86400));
             vec![
-                r.name.clone(),
-                format!("{}d", r.age_days),
-                r.last_commit.clone().unwrap_or_else(|| "(none)".into()),
-                r.path.clone(),
+                out.cell(&r.name, CellStyle::Plain),
+                out.cell(format!("{}d", r.age_days), OutputCtx::age_style(age_secs)),
+                out.cell(
+                    r.last_commit.clone().unwrap_or_else(|| "(none)".into()),
+                    CellStyle::Dim,
+                ),
+                out.cell(&r.path, CellStyle::Dim),
             ]
         })
         .collect();
-    out.print_table(&["repo", "age", "last commit", "path"], table)?;
+    out.print_table_cells(&["repo", "age", "last commit", "path"], table)?;
     Ok(())
 }
