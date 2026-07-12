@@ -1,0 +1,40 @@
+name: Linux packages
+
+# Attach .deb / .rpm after cargo-dist publishes a GitHub Release.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  packages-linux:
+    name: deb + rpm
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name, 'v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Install packagers
+        run: cargo install cargo-deb cargo-generate-rpm --locked
+      - name: Build deb + rpm
+        run: |
+          mkdir -p dist
+          cargo deb --output dist/
+          cargo generate-rpm
+          cp target/generate-rpm/*.rpm dist/ || true
+          ls -la dist
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber

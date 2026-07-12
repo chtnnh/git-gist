@@ -47,10 +47,16 @@ nix run github:chtnnh/git-gist -- version
 nix profile install github:chtnnh/git-gist
 ```
 
-### cargo-dist shell installer
+### cargo-dist shell / PowerShell installer
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-installer.ps1 | iex
 ```
 
 Operator guide for brew/deb/rpm/nix: [packaging/README.md](packaging/README.md).

@@ -1,45 +1,51 @@
-# This file documents packaging channels for git-gist (`gg`).
-# See also: docs/src/packaging.md and packaging/
+# Packaging channels for git-gist (`gg`)
 
 ## Quick matrix
 
 | Channel | Status | How users install | How you publish |
 |---------|--------|-------------------|-----------------|
-| **crates.io** | Ready anytime | `cargo install git-gist` | `cargo publish` |
-| **GitHub Releases** | CI on tags | Download binary / installer | Push `v*` tag |
-| **Homebrew** | Tap formula | `brew install chtnnh/tap/git-gist` | Push formula to tap repo |
-| **deb** | Metadata + CI | `apt install ./git-gist_*.deb` | `cargo deb` in release |
-| **rpm** | Metadata + CI | `rpm -i git-gist-*.rpm` | `cargo generate-rpm` in release |
-| **Nix** | `flake.nix` | `nix profile install github:chtnnh/git-gist` | Merge flake; optional NUR |
-| **Scoop** (Windows) | Optional | `scoop install git-gist` | Add bucket JSON |
-| **AUR** | Optional | `yay -S git-gist` | Publish PKGBUILD |
+| **crates.io** | Manual | `cargo install git-gist --locked` | `cargo publish` |
+| **GitHub Releases** | cargo-dist on tags | Archives + installers | Push `v*` tag |
+| **Shell / PowerShell installer** | cargo-dist | `curl …/git-gist-installer.sh \| sh` | Automatic on tag |
+| **Homebrew** | Tap live | `brew install chtnnh/tap/git-gist` | cargo-dist publishes formula via `HOMEBREW_TAP_TOKEN` |
+| **deb / rpm** | On release publish | Download from Releases | `.github/workflows/packages.yml` |
+| **Nix** | Flake | `nix profile install github:chtnnh/git-gist` | Flake on `main`; optional nixpkgs/NUR later |
 
-## Recommended publish order
+## Release flow
 
-1. Push code to GitHub, create annotated tag `v1.0.0`
-2. Release workflow builds archives + man page
-3. Publish to crates.io (`cargo publish`)
-4. Create `chtnnh/homebrew-tap`, copy/update `packaging/homebrew/git-gist.rb` with release URL + sha256
-5. Attach `.deb` / `.rpm` from `cargo deb` / `cargo generate-rpm` (or cargo-dist)
-6. Point README install section at live URLs
-7. Optional: submit nixpkgs PR later; flake works immediately
+1. Bump version in `Cargo.toml`, `CHANGELOG.md`, `flake.nix`
+2. `cargo test --workspace` (CI also enforces ≥95% coverage on `main` / tags)
+3. Commit, tag `vX.Y.Z`, push tag
+4. **Release** workflow (cargo-dist) builds archives, `git-gist-installer.sh` / `.ps1`, Homebrew formula, and GitHub Release
+5. **Linux packages** workflow attaches `.deb` / `.rpm` once the Release is published
+6. `cargo publish` when ready for crates.io
 
-## Homebrew tap (concrete steps)
+## Homebrew
+
+Tap repo: [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap)
 
 ```bash
-# one-time
-gh repo create chtnnh/homebrew-tap --public
-git clone git@github.com:chtnnh/homebrew-tap.git
-mkdir -p homebrew-tap/Formula
-cp packaging/homebrew/git-gist.rb homebrew-tap/Formula/
-# edit url + sha256 from GitHub release tarball
-# shasum -a 256 git-gist-1.0.0.tar.gz
-cd homebrew-tap && git add Formula/git-gist.rb && git commit -m "git-gist 1.0.0" && git push
-
-# users
-brew tap chtnnh/tap
+brew tap chtnnh/tap   # first time; may need `brew trust chtnnh/tap` on Homebrew 6+
 brew install git-gist
 ```
+
+- **v1.0.0 bootstrap:** source-build formula in the tap (already published).
+- **Later tags:** cargo-dist overwrites `Formula/git-gist.rb` with a bottle/prebuilt formula (`tap = "chtnnh/homebrew-tap"` in `dist-workspace.toml`).
+- Requires repo secret `HOMEBREW_TAP_TOKEN` (PAT with Contents write on `chtnnh/homebrew-tap`).
+
+Template / fallback source formula: [`packaging/homebrew/git-gist.rb`](homebrew/git-gist.rb).
+
+## cargo-dist
+
+Config: [`dist-workspace.toml`](../dist-workspace.toml) + `[package.metadata.dist]` formula name in `Cargo.toml`.
+
+```bash
+brew install axodotdev/tap/cargo-dist   # or: cargo install cargo-dist
+dist plan                               # preview artifacts
+dist generate                           # refresh `.github/workflows/release.yml`
+```
+
+Do **not** hand-edit `release.yml`; regenerate from `dist-workspace.toml`.
 
 ## deb / rpm locally
 
@@ -48,26 +54,11 @@ cargo install cargo-deb cargo-generate-rpm
 cargo build --release
 cargo deb
 cargo generate-rpm
-# artifacts under target/debian/ and target/generate-rpm/
 ```
 
 ## Nix
 
 ```bash
 nix run . -- version
-nix profile install .
-# or from GitHub once pushed:
 nix profile install github:chtnnh/git-gist
 ```
-
-## cargo-dist (optional upgrade)
-
-`Cargo.toml` already has `[package.metadata.dist]`. To fully automate brew/deb-like installers:
-
-```bash
-cargo install cargo-dist
-dist init   # merges release workflow
-dist build
-```
-
-Prefer one release system (cargo-dist **or** the hand-rolled `.github/workflows/release.yml`) to avoid duplicate uploads.

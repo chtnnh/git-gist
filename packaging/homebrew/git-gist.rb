@@ -2,15 +2,15 @@
 # Publish under a tap (e.g. chtnnh/homebrew-tap) as Formula/git-gist.rb
 #
 # After cutting a GitHub release for vX.Y.Z:
-#   1. Download https://github.com/chtnnh/git-gist/archive/refs/tags/vX.Y.Z.tar.gz
+#   1. Download https://github.com/chtnnh/git-gist/archive/vX.Y.Z.tar.gz
 #   2. shasum -a 256 vX.Y.Z.tar.gz
 #   3. Update url + sha256 below, bump version
 #   4. Commit to the tap and `brew audit --strict --online git-gist`
 class GitGist < Formula
   desc "Run git commands across all child git repositories"
   homepage "https://github.com/chtnnh/git-gist"
-  url "https://github.com/chtnnh/git-gist/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "REPLACE_WITH_RELEASE_TARBALL_SHA256"
+  url "https://github.com/chtnnh/git-gist/archive/v1.0.0.tar.gz"
+  sha256 "a2dd858ec9da3b499dec5f4b81113fd16c2c972015827e458fb9fc0cb34422be"
   license "MIT"
   head "https://github.com/chtnnh/git-gist.git", branch: "main"
 

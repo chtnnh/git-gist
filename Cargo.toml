@@ -55,20 +55,8 @@ inherits = "release"
 lto = "thin"
 
 [package.metadata.dist]
-dist = true
+# Formula name in the Homebrew tap (binary remains `gg`)
 formula = "git-gist"
-installers = ["shell", "homebrew"]
-targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
-  "x86_64-pc-windows-msvc",
-  "aarch64-pc-windows-msvc",
-]
-ci = "github"
-unix-archive = ".tar.gz"
-windows-archive = ".zip"
 
 [package.metadata.deb]
 maintainer = "git-gist contributors"

@@ -17,7 +17,7 @@ brew install git-gist
 # or: brew install chtnnh/tap/git-gist
 ```
 
-Requires the `chtnnh/homebrew-tap` repository to publish the formula (see [Packaging](./packaging.md)).
+Requires [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap). On Homebrew 6+, you may need `brew trust chtnnh/tap` once.
 
 ## Nix
 
@@ -39,13 +39,15 @@ cargo deb
 cargo generate-rpm
 ```
 
-## Shell installer (cargo-dist)
-
-When a release publishes the installer:
+## Shell / PowerShell installer (cargo-dist)
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-installer.sh | sh
+```
+
+```powershell
+irm https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-installer.ps1 | iex
 ```
 
 Full operator guide: [Packaging](./packaging.md) and [`packaging/README.md`](../../packaging/README.md).
