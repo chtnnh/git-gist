@@ -25,7 +25,7 @@ pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Re
             repo: None,
             message: "git not found on PATH".into(),
         });
-    } else if let Ok(output) = std::process::Command::new("git").arg("--version").output() {
+    } else if let Ok(output) = crate::repo::git_command().arg("--version").output() {
         let v = String::from_utf8_lossy(&output.stdout).trim().to_string();
         findings.push(DoctorFinding {
             level: "info".into(),

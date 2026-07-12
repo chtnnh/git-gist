@@ -8,9 +8,77 @@ on:
     tags:
       - "v*"
 
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
 jobs:
+  # Gate publishing on the same checks as CI so a green release never races a red CI.
+  quality:
+    name: quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --check
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace
+
+  coverage:
+    name: coverage (≥95%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate coverage
+        run: |
+          cargo llvm-cov clean --workspace
+          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+            --ignore-filename-regex '(tests/|/cargo/registry/)'
+          cargo llvm-cov report --summary-only | tee coverage-summary.txt
+      - name: Enforce ≥95% line coverage
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          threshold = 95.0
+          text = open("coverage-summary.txt").read()
+          for line in text.splitlines():
+              if not line.startswith("TOTAL"):
+                  continue
+              percents = re.findall(r"(\d+\.\d+)%", line)
+              if len(percents) < 3:
+                  print(f"FAIL: bad TOTAL percents {percents}", file=sys.stderr)
+                  sys.exit(1)
+              line_pct = float(percents[2])  # Lines Cover
+              rounded = round(line_pct, 1)
+              print(f"Line coverage: {line_pct:.2f}% → {rounded:.1f}%")
+              if rounded + 1e-9 < threshold:
+                  print(f"FAIL: {rounded:.1f}% < {threshold:.0f}%", file=sys.stderr)
+                  sys.exit(1)
+              print("PASS")
+              sys.exit(0)
+          print("FAIL: TOTAL line not found", file=sys.stderr)
+          sys.exit(1)
+          PY
+
   release:
     name: release (${{ matrix.os }})
+    needs: [quality, coverage]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

@@ -74,7 +74,7 @@ pub fn run_git(
                     return None;
                 }
                 let start = Instant::now();
-                let output = Command::new("git")
+                let output = crate::repo::git_command()
                     .args(args)
                     .current_dir(&repo.path)
                     .stdout(Stdio::piped())

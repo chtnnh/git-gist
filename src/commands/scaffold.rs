@@ -4,7 +4,6 @@ use crate::output::OutputCtx;
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub fn init(
     profile_name: Option<&str>,
@@ -26,7 +25,7 @@ pub fn init(
 
     fs::create_dir_all(&target)?;
 
-    let status = Command::new("git")
+    let status = crate::repo::git_command()
         .args(["init"])
         .current_dir(&target)
         .status()
@@ -36,27 +35,27 @@ pub fn init(
     }
 
     if let Some(branch) = &profile.default_branch {
-        let _ = Command::new("git")
+        let _ = crate::repo::git_command()
             .args(["symbolic-ref", "HEAD", &format!("refs/heads/{branch}")])
             .current_dir(&target)
             .status();
     }
 
     if let Some(user) = &profile.user_name {
-        let _ = Command::new("git")
+        let _ = crate::repo::git_command()
             .args(["config", "user.name", user])
             .current_dir(&target)
             .status();
     }
     if let Some(email) = &profile.user_email {
-        let _ = Command::new("git")
+        let _ = crate::repo::git_command()
             .args(["config", "user.email", email])
             .current_dir(&target)
             .status();
     }
 
     for (remote_name, url) in &profile.remotes {
-        let _ = Command::new("git")
+        let _ = crate::repo::git_command()
             .args(["remote", "add", remote_name, url])
             .current_dir(&target)
             .status();

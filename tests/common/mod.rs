@@ -65,6 +65,11 @@ impl Fixture {
         fs::write(dir.join("config.toml"), body).unwrap();
     }
 
+    /// Escape a path for embedding in a double-quoted TOML string (Windows-safe).
+    pub fn toml_path(path: &Path) -> String {
+        path.display().to_string().replace('\\', "\\\\")
+    }
+
     pub fn write_local_config(&self, body: &str) {
         fs::write(self.root.path().join(".gg.toml"), body).unwrap();
     }

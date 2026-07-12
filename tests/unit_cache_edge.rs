@@ -208,8 +208,9 @@ fn exec_when_git_missing_from_path() {
     fs::create_dir_all(dir.path()).unwrap();
     let repo = Repo::new(dir.path().to_path_buf());
 
-    let old = std::env::var_os("PATH");
-    std::env::set_var("PATH", "/nonexistent-gg-path");
+    // Prefer GIT_GIST_GIT over mutating PATH so parallel tests keep a working git.
+    let old = std::env::var_os("GIT_GIST_GIT");
+    std::env::set_var("GIT_GIST_GIT", "/nonexistent-gg-git-binary");
     let cli = Cli::try_parse_from(["gg", "status"]).unwrap();
     let cfg = Config {
         jobs: Some(1),
@@ -224,8 +225,8 @@ fn exec_when_git_missing_from_path() {
         &mut out,
     );
     match old {
-        Some(p) => std::env::set_var("PATH", p),
-        None => std::env::remove_var("PATH"),
+        Some(p) => std::env::set_var("GIT_GIST_GIT", p),
+        None => std::env::remove_var("GIT_GIST_GIT"),
     }
     assert!(result.is_err());
 }

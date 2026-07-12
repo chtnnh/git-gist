@@ -138,8 +138,8 @@ other = "{}"
 [tags]
 oss = ["tagged"]
 "#,
-        f.repos[0].display(),
-        f.repos[1].display()
+        Fixture::toml_path(&f.repos[0]),
+        Fixture::toml_path(&f.repos[1])
     ));
     f.gg()
         .args(["--tag", "oss", "list", "--refresh"])
@@ -159,7 +159,7 @@ schema_version = 1
 [repo_overrides]
 "{key}" = {{ skip = true }}
 "#,
-        key = skip_path.display()
+        key = Fixture::toml_path(&skip_path)
     ));
     f.gg()
         .args(["list", "--refresh"])

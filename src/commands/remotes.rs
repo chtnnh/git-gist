@@ -4,7 +4,6 @@ use crate::output::OutputCtx;
 use crate::repo::Repo;
 use anyhow::{bail, Context, Result};
 use std::io::Write;
-use std::process::Command;
 
 pub fn run(
     action: &RemotesAction,
@@ -53,7 +52,7 @@ pub fn run(
                 bail!("no repositories selected");
             }
             for repo in repos {
-                let status = Command::new("git")
+                let status = crate::repo::git_command()
                     .args(["remote", "add", remote_name, &url])
                     .current_dir(&repo.path)
                     .status()?;
@@ -61,7 +60,7 @@ pub fn run(
                     out.success(&format!("{}: added remote {remote_name}", repo.name))?;
                 } else {
                     // try set-url if exists
-                    let status = Command::new("git")
+                    let status = crate::repo::git_command()
                         .args(["remote", "set-url", remote_name, &url])
                         .current_dir(&repo.path)
                         .status()?;

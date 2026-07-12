@@ -5,6 +5,12 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Build a `git` command, honoring `GIT_GIST_GIT` (override used in tests).
+pub fn git_command() -> Command {
+    let bin = std::env::var("GIT_GIST_GIT").unwrap_or_else(|_| "git".to_string());
+    Command::new(bin)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Repo {
     pub path: PathBuf,
@@ -40,7 +46,7 @@ pub struct RepoStatus {
 }
 
 pub fn git_in(repo: &Path, args: &[&str]) -> Result<std::process::Output> {
-    Command::new("git")
+    git_command()
         .args(args)
         .current_dir(repo)
         .output()
