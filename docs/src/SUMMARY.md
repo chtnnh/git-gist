@@ -9,3 +9,4 @@
 - [Packaging](./packaging.md)
 - [Cookbook](./cookbook.md)
 - [Deprecation policy](./deprecation.md)
+- [Hosting this book](./hosting.md)

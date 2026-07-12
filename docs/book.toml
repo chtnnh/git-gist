@@ -7,3 +7,5 @@ src = "src"
 
 [output.html]
 git-repository-url = "https://github.com/chtnnh/git-gist"
+site-url = "https://gg.chtnnhfoundation.org/"
+edit-url-template = "https://github.com/chtnnh/git-gist/edit/main/docs/{path}"

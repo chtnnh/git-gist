@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-07-12
+### Added
+- mdBook docs deployed to GitHub Pages at https://gg.chtnnhfoundation.org/
 
 ### Added
 - Semantic colors in overview/sync/stale tables (clean/dirty, age bands, ahead/behind)

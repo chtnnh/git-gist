@@ -2,6 +2,8 @@
 
 **Run git across all child repositories — fast.**
 
+Docs: **https://gg.chtnnhfoundation.org/**
+
 `gg` discovers git repos under a directory and runs git commands (or built-in insights) in parallel. One CLI for multi-checkout workspaces, client folders, and polyrepos.
 
 ```bash
