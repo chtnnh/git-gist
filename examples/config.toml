@@ -1,4 +1,5 @@
 # Example global config — copy to ~/.config/git-gist/config.toml
+# On macOS, gg uses ~/Library/Application Support/git-gist/config.toml
 
 schema_version = 1
 depth = 6
@@ -24,3 +25,11 @@ ignore = [
 # default_branch = "main"
 # user_name = "Your Name"
 # user_email = "you@example.com"
+
+# Watch folders and enroll new git repos into aliases / groups / tags.
+# Run: gg update   (or gg update --dry-run)
+# [[auto_enroll]]
+# path = "/home/you/src/learning"
+# depth = 6
+# tags = ["learning"]
+# groups = []

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Semantic colors in overview/sync/stale tables (clean/dirty, age bands, ahead/behind)
+- `[[auto_enroll]]` config rules + `gg update` to enroll new repos into aliases/groups/tags
+
+### Fixed
+- Scaffold profiles parse without requiring empty `remotes` / `hooks` tables
+
 ## [1.0.0] - 2026-07-12
 
 ### Added
