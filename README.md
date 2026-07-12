@@ -133,10 +133,16 @@ user_email = "you@example.com"
 
 ## Global flags
 
-- `--root`, `--in` / `-i`, `--exclude` / `-x`, `-g <group>`
-- `-j` jobs, `--fail-fast`, `--dry-run`, `--timing`
+- `--root`, `--in` / `-i`, `--exclude` / `-x`, `-g <group>`, `--tag`, `--depth`
+- `-j` jobs, `--fail-fast`, `--dry-run`, `--timing`, `-q` / `--quiet`
 - `--only-dirty`, `--only-clean`, `--only-ahead`, `--only-behind`, …
 - `--format human|json|ndjson`, `--color auto|always|never`, `--theme`
+
+Selection flags (`--root`, `--in`, `--only-*`, …) apply to reporting and multi-repo
+commands (`ov`, `list`, `sync`, `each`, passthrough, …). Catalog/config commands
+(`alias`, `group`, `config`, `hooks list`, …) ignore them. Put global flags
+**before** external git verbs (`gg --dry-run status`), since trailing flags after
+passthrough go to git.
 
 ## License
 

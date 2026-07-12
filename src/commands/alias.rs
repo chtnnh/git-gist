@@ -4,7 +4,7 @@ use crate::output::OutputCtx;
 use anyhow::Result;
 use std::io::Write;
 
-pub fn run(action: &AliasAction, _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
+pub fn run(action: &AliasAction, cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     match action {
         AliasAction::List => {
             if out.is_json() {
@@ -18,8 +18,15 @@ pub fn run(action: &AliasAction, _cli: &Cli, cfg: &Config, out: &mut OutputCtx) 
             }
         }
         AliasAction::Add { name, path } => {
-            let mut updated = cfg.clone();
             let resolved = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if cli.dry_run {
+                out.info(&format!(
+                    "dry-run: would alias {name} → {}",
+                    resolved.display()
+                ))?;
+                return Ok(());
+            }
+            let mut updated = cfg.clone();
             updated.aliases.insert(name.clone(), resolved.clone());
             let saved = config::save_global(&updated)?;
             out.success(&format!(
@@ -29,6 +36,10 @@ pub fn run(action: &AliasAction, _cli: &Cli, cfg: &Config, out: &mut OutputCtx) 
             ))?;
         }
         AliasAction::Remove { name } => {
+            if cli.dry_run {
+                out.info(&format!("dry-run: would remove alias {name}"))?;
+                return Ok(());
+            }
             let mut updated = cfg.clone();
             if updated.aliases.remove(name).is_none() {
                 anyhow::bail!("alias not found: {name}");

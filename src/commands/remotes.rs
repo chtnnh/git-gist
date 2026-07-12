@@ -8,7 +8,7 @@ use std::io::Write;
 pub fn run(
     action: &RemotesAction,
     repos: &[Repo],
-    _cli: &Cli,
+    cli: &Cli,
     cfg: &Config,
     out: &mut OutputCtx,
 ) -> Result<()> {
@@ -25,6 +25,10 @@ pub fn run(
             }
         }
         RemotesAction::Add { name, url } => {
+            if cli.dry_run {
+                out.info(&format!("dry-run: would add remote {name} → {url}"))?;
+                return Ok(());
+            }
             let mut updated = cfg.clone();
             updated.remotes.insert(name.clone(), url.clone());
             let saved = config::save_global(&updated)?;
@@ -34,6 +38,10 @@ pub fn run(
             ))?;
         }
         RemotesAction::Remove { name } => {
+            if cli.dry_run {
+                out.info(&format!("dry-run: would remove remote {name}"))?;
+                return Ok(());
+            }
             let mut updated = cfg.clone();
             if updated.remotes.remove(name).is_none() {
                 bail!("remote not found: {name}");
@@ -52,6 +60,13 @@ pub fn run(
                 bail!("no repositories selected");
             }
             for repo in repos {
+                if cli.dry_run {
+                    out.info(&format!(
+                        "dry-run: would add remote {remote_name} → {url} in {}",
+                        repo.name
+                    ))?;
+                    continue;
+                }
                 let status = crate::repo::git_command()
                     .args(["remote", "add", remote_name, &url])
                     .current_dir(&repo.path)

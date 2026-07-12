@@ -26,14 +26,30 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
     }
 
     if cli.dry_run {
-        for repo in repos {
-            out.repo_header(&repo.name, &repo.display_path())?;
-            writeln!(out.stdout(), "dry-run: git fetch --all --prune")?;
-            if pull {
-                writeln!(
-                    out.stdout(),
-                    "dry-run: git pull --ff-only (if behind && clean)"
-                )?;
+        if out.is_json() {
+            let rows: Vec<_> = repos
+                .iter()
+                .map(|repo| {
+                    serde_json::json!({
+                        "name": repo.name,
+                        "path": repo.display_path(),
+                        "dry_run": true,
+                        "fetch": ["fetch", "--all", "--prune"],
+                        "pull": pull,
+                    })
+                })
+                .collect();
+            out.write_json(&rows)?;
+        } else {
+            for repo in repos {
+                out.repo_header(&repo.name, &repo.display_path())?;
+                writeln!(out.stdout(), "dry-run: git fetch --all --prune")?;
+                if pull {
+                    writeln!(
+                        out.stdout(),
+                        "dry-run: git pull --ff-only (if behind && clean)"
+                    )?;
+                }
             }
         }
         return Ok(());

@@ -25,12 +25,23 @@ struct InfoRow {
 pub fn run(
     repos: &[Repo],
     path: Option<&Path>,
-    _cli: &Cli,
+    cli: &Cli,
     _cfg: &Config,
     out: &mut OutputCtx,
 ) -> Result<()> {
     let targets: Vec<Repo> = if let Some(p) = path {
-        vec![Repo::new(p.to_path_buf())]
+        let repo = Repo::new(p.to_path_buf());
+        if selection_filters_active(cli) {
+            // Selection already applied filters; only show the path if it survived.
+            if repos.iter().any(|r| paths_equal(&r.path, &repo.path)) {
+                vec![repo]
+            } else {
+                Vec::new()
+            }
+        } else {
+            // No selection filters: allow probing an arbitrary path.
+            vec![repo]
+        }
     } else {
         repos.to_vec()
     };
@@ -79,4 +90,23 @@ pub fn run(
         }
     }
     Ok(())
+}
+
+fn selection_filters_active(cli: &Cli) -> bool {
+    !cli.include.is_empty()
+        || !cli.group.is_empty()
+        || !cli.exclude.is_empty()
+        || !cli.tag.is_empty()
+        || cli.only_dirty
+        || cli.only_clean
+        || cli.only_ahead
+        || cli.only_behind
+        || cli.only_stashed
+        || cli.only_detached
+}
+
+fn paths_equal(a: &Path, b: &Path) -> bool {
+    let a = a.canonicalize().unwrap_or_else(|_| a.to_path_buf());
+    let b = b.canonicalize().unwrap_or_else(|_| b.to_path_buf());
+    a == b
 }

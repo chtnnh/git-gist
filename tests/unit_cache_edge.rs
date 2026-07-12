@@ -282,6 +282,6 @@ fn filters_only_ahead_drops_synced_upstream() {
 
     let repo = Repo::new(clone);
     let cli = Cli::try_parse_from(["gg", "--only-ahead", "list"]).unwrap();
-    let filtered = filters::apply_status_filters(vec![repo], &cli).unwrap();
+    let filtered = filters::apply_status_filters(vec![repo], &cli, None).unwrap();
     assert!(filtered.is_empty());
 }

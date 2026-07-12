@@ -23,35 +23,38 @@ struct OverviewRow {
     detached: bool,
 }
 
-pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Result<()> {
+pub fn run(repos: &[Repo], _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     if repos.is_empty() {
         out.warn("no repositories found")?;
         return Ok(());
     }
 
-    let rows: Vec<OverviewRow> = repos
-        .par_iter()
-        .map(|repo| {
-            let status = repo::probe_status(&repo.path).unwrap_or_default();
-            OverviewRow {
-                name: repo.name.clone(),
-                path: repo.display_path(),
-                branch: if status.detached {
-                    format!("detached@{}", status.branch)
-                } else {
-                    status.branch
-                },
-                dirty: status.dirty,
-                ahead: status.ahead,
-                behind: status.behind,
-                upstream: status.upstream,
-                age: status.last_commit_age_secs.map(repo::format_age),
-                in_progress: status.in_progress,
-                age_secs: status.last_commit_age_secs,
-                detached: status.detached,
-            }
-        })
-        .collect();
+    let pool = crate::exec::job_pool(cfg)?;
+    let rows: Vec<OverviewRow> = pool.install(|| {
+        repos
+            .par_iter()
+            .map(|repo| {
+                let status = repo::probe_status(&repo.path).unwrap_or_default();
+                OverviewRow {
+                    name: repo.name.clone(),
+                    path: repo.display_path(),
+                    branch: if status.detached {
+                        format!("detached@{}", status.branch)
+                    } else {
+                        status.branch
+                    },
+                    dirty: status.dirty,
+                    ahead: status.ahead,
+                    behind: status.behind,
+                    upstream: status.upstream,
+                    age: status.last_commit_age_secs.map(repo::format_age),
+                    in_progress: status.in_progress,
+                    age_secs: status.last_commit_age_secs,
+                    detached: status.detached,
+                }
+            })
+            .collect()
+    });
 
     let mut rows = rows;
     rows.sort_by(|a, b| a.path.cmp(&b.path));

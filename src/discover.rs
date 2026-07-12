@@ -42,13 +42,23 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         discover_repos(&root, depth, cfg)?
     };
 
+    // Discovery skips the search root itself (child repos only). When the user
+    // passes `--root` and that directory is a git repo, include it.
+    if cli.root.is_some() && is_git_repo(&root) && !paths.iter().any(|p| p == &root) {
+        paths.insert(0, root.clone());
+    }
+
     if refresh || load_cache(&root, depth, cfg.include_submodules)?.is_none() {
         let _ = save_cache(&root, depth, cfg.include_submodules, &paths);
     }
 
-    // Always include explicitly aliased paths that exist
+    // Include aliased repos that live under the search root (so depth/ignore
+    // still pick them up). Aliases outside the root stay available via `-i`.
     for path in cfg.aliases.values() {
         let canonical = canonicalize_soft(path);
+        if !is_under_root(&canonical, &root) {
+            continue;
+        }
         if is_git_repo(&canonical) && !paths.iter().any(|p| p == &canonical) {
             paths.push(canonical);
         }
@@ -111,7 +121,7 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         || cli.only_stashed
         || cli.only_detached
     {
-        repos = crate::filters::apply_status_filters(repos, cli)?;
+        repos = crate::filters::apply_status_filters(repos, cli, cfg.jobs)?;
     }
 
     Ok(repos)
@@ -213,6 +223,12 @@ pub fn is_git_repo(path: &Path) -> bool {
 
 fn canonicalize_soft(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn is_under_root(path: &Path, root: &Path) -> bool {
+    let path = canonicalize_soft(path);
+    let root = canonicalize_soft(root);
+    path == root || path.starts_with(&root)
 }
 
 pub fn resolve_target(target: &str, cfg: &Config, discovered: &[PathBuf]) -> Result<Vec<PathBuf>> {

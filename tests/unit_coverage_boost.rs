@@ -138,5 +138,5 @@ fn only_ahead_behind_stashed_via_filters_module() {
     git(dir.path(), &["commit", "-m", "c"]);
     let repo = Repo::new(dir.path().to_path_buf());
     let cli = Cli::try_parse_from(["gg", "--only-ahead", "list"]).unwrap();
-    let _ = filters::apply_status_filters(vec![repo], &cli).unwrap();
+    let _ = filters::apply_status_filters(vec![repo], &cli, None).unwrap();
 }

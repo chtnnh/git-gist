@@ -35,6 +35,12 @@ pub fn passthrough(
     run_git(repos, &argv, cli, cfg, out)
 }
 
+/// Build a rayon pool sized from `--jobs` / config.
+pub fn job_pool(cfg: &Config) -> Result<rayon::ThreadPool> {
+    let jobs = cfg.jobs.unwrap_or_else(num_cpus::get).max(1);
+    Ok(rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?)
+}
+
 pub fn run_git(
     repos: &[Repo],
     args: &[&str],
@@ -60,9 +66,7 @@ pub fn run_git(
         return Ok(());
     }
 
-    let jobs = cfg.jobs.unwrap_or_else(num_cpus::get).max(1);
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?;
-
+    let pool = job_pool(cfg)?;
     let stop = Arc::new(AtomicBool::new(false));
     let failures = Arc::new(AtomicUsize::new(0));
 
@@ -190,8 +194,7 @@ pub fn run_shell(
         return Ok(());
     }
 
-    let jobs = cfg.jobs.unwrap_or_else(num_cpus::get).max(1);
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?;
+    let pool = job_pool(cfg)?;
     let script = cmd_display.clone();
     let stop = Arc::new(AtomicBool::new(false));
     let failures = Arc::new(AtomicUsize::new(0));
@@ -258,17 +261,23 @@ pub fn run_shell(
         out.write_json(&payload)?;
     } else {
         for r in &results {
+            if cli.quiet && r.success {
+                continue;
+            }
             out.repo_header(&r.repo.name, &r.repo.display_path())?;
             if !r.stdout.is_empty() {
-                print!("{}", r.stdout);
+                write!(out.stdout(), "{}", r.stdout)?;
                 if !r.stdout.ends_with('\n') {
-                    println!();
+                    writeln!(out.stdout())?;
                 }
             }
             if !r.stderr.is_empty() {
-                eprint!("{}", r.stderr);
+                write!(out.stderr(), "{}", r.stderr)?;
+                if !r.stderr.ends_with('\n') {
+                    writeln!(out.stderr())?;
+                }
             }
-            if cli.timing {
+            if cli.timing || cli.verbose > 0 {
                 writeln!(out.stdout(), "  {}ms", r.duration_ms)?;
             }
         }

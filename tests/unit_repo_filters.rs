@@ -76,7 +76,7 @@ fn only_dirty_filter() {
     let (d2, dirty) = setup_repo(true);
     fs::write(dirty.path.join("x"), "1").unwrap();
     let cli = cli_flag("--only-dirty");
-    let filtered = filters::apply_status_filters(vec![clean, dirty], &cli).unwrap();
+    let filtered = filters::apply_status_filters(vec![clean, dirty], &cli, None).unwrap();
     assert_eq!(filtered.len(), 1);
     assert!(filtered[0].path.ends_with(d2.path().file_name().unwrap()));
     drop(d1);
@@ -88,7 +88,7 @@ fn only_clean_filter() {
     let (_d2, dirty) = setup_repo(true);
     fs::write(dirty.path.join("x"), "1").unwrap();
     let cli = cli_flag("--only-clean");
-    let filtered = filters::apply_status_filters(vec![clean.clone(), dirty], &cli).unwrap();
+    let filtered = filters::apply_status_filters(vec![clean.clone(), dirty], &cli, None).unwrap();
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].name, clean.name);
 }

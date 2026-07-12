@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 pub fn init(
     profile_name: Option<&str>,
     path: Option<&Path>,
-    _cli: &Cli,
+    cli: &Cli,
     cfg: &Config,
     out: &mut OutputCtx,
 ) -> Result<()> {
@@ -22,6 +22,14 @@ pub fn init(
     let target = path
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().expect("cwd"));
+
+    if cli.dry_run {
+        out.info(&format!(
+            "dry-run: would scaffold {} with profile '{name}'",
+            target.display()
+        ))?;
+        return Ok(());
+    }
 
     fs::create_dir_all(&target)?;
 

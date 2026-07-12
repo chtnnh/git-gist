@@ -10,7 +10,7 @@ use std::path::Path;
 pub fn run(
     action: &HooksAction,
     repos: &[Repo],
-    _cli: &Cli,
+    cli: &Cli,
     cfg: &Config,
     out: &mut OutputCtx,
 ) -> Result<()> {
@@ -49,6 +49,13 @@ pub fn run(
                 bail!("no repositories selected");
             }
             for repo in repos {
+                if cli.dry_run {
+                    out.info(&format!(
+                        "dry-run: would install '{pack}' into {}",
+                        repo.display_path()
+                    ))?;
+                    continue;
+                }
                 install_pack(&repo.path, &pack_def)?;
                 out.success(&format!("installed '{pack}' into {}", repo.display_path()))?;
             }

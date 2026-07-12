@@ -331,6 +331,72 @@ fn targeting_exclude_and_root() {
 }
 
 #[test]
+fn root_flag_ignores_aliases_outside_root() {
+    let mut f = Fixture::with_repos(&["local"]);
+    let outside = f.home.path().join("elsewhere");
+    fs::create_dir_all(&outside).unwrap();
+    git(&outside, &["init", "-b", "main"]);
+    fs::write(outside.join("README"), "x\n").unwrap();
+    git(&outside, &["add", "README"]);
+    git(&outside, &["commit", "-m", "init"]);
+    f.repos.push(outside.clone());
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+root = "{root}"
+[aliases]
+local = "{local}"
+elsewhere = "{elsewhere}"
+"#,
+        root = Fixture::toml_path(f.root.path()),
+        local = Fixture::toml_path(&f.repos[0]),
+        elsewhere = Fixture::toml_path(&outside),
+    ));
+
+    let nested = f.root.path().join("nested");
+    fs::create_dir_all(&nested).unwrap();
+    // Scope to an empty subdirectory: discovery finds nothing under it, and
+    // the out-of-root alias must not leak into the selection.
+    f.gg()
+        .args(["--root", nested.to_str().unwrap(), "ov", "--format", "json"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("elsewhere").not())
+        .stdout(predicates::str::contains("local").not());
+
+    // Explicit -i still reaches an alias outside the root.
+    f.gg()
+        .args([
+            "--root",
+            nested.to_str().unwrap(),
+            "--in",
+            "elsewhere",
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("elsewhere"));
+}
+
+#[test]
+fn root_flag_includes_root_when_it_is_a_repo() {
+    let f = Fixture::new();
+    git(f.root.path(), &["init", "-b", "main"]);
+    fs::write(f.root.path().join("README"), "x\n").unwrap();
+    git(f.root.path(), &["add", "README"]);
+    git(f.root.path(), &["commit", "-m", "init"]);
+
+    f.gg()
+        .args(["--root", f.root.path().to_str().unwrap(), "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            f.root.path().file_name().unwrap().to_str().unwrap(),
+        ));
+}
+
+#[test]
 fn only_dirty_and_only_clean() {
     let f = Fixture::with_repos(&["clean", "dirty"]);
     fs::write(f.repos[1].join("dirty.txt"), "x").unwrap();

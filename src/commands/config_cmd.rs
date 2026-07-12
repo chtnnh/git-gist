@@ -4,7 +4,7 @@ use crate::output::OutputCtx;
 use anyhow::Result;
 use std::io::Write;
 
-pub fn run(action: &ConfigAction, _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
+pub fn run(action: &ConfigAction, cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     match action {
         ConfigAction::Show => {
             let mut display = cfg.clone();
@@ -32,6 +32,10 @@ pub fn run(action: &ConfigAction, _cli: &Cli, cfg: &Config, out: &mut OutputCtx)
             writeln!(out.stdout(), "{value}")?;
         }
         ConfigAction::Set { key, value } => {
+            if cli.dry_run {
+                out.info(&format!("dry-run: would set {key}={value}"))?;
+                return Ok(());
+            }
             let mut updated = cfg.clone();
             config::set_dot_key(&mut updated, key, value)?;
             let path = config::save_global(&updated)?;

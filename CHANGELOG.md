@@ -10,9 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Semantic colors in overview/sync/stale tables (clean/dirty, age bands, ahead/behind)
 - `[[auto_enroll]]` config rules + `gg update` to enroll new repos into aliases/groups/tags
+- Cross-command `tests/flags_matrix.rs` covering selection, dry-run side effects, and format flags
 
 ### Fixed
 - Scaffold profiles parse without requiring empty `remotes` / `hooks` tables
+- `--root` no longer unions out-of-root aliases into the selection; `--root` on a git repo includes that repo
+- Selection flags no longer gate catalog/config commands (`alias`, `group`, `config`, `hooks list`, …)
+- `--dry-run` honored by `hooks install`, `remotes` mutations, `init`/`scaffold`, `alias`/`group`/`config set`
+- `-j` honored by overview probing and status filters; `-q`/`--timing` honored by `each`
+- `info PATH` respects `--only-*` / `--in` / related selection filters
+- `sync --dry-run --format json` emits JSON instead of suppressing repo headers
 
 ## [1.0.0] - 2026-07-12
 

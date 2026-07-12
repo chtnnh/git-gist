@@ -11,7 +11,7 @@ pub mod repo;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
-use cli::{Cli, ColorChoice, Commands};
+use cli::{Cli, ColorChoice, Commands, HooksAction, RemotesAction};
 use output::{OutputCtx, Theme};
 
 /// Entry point used by the `gg` binary and integration harnesses.
@@ -44,8 +44,10 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         out = out.with_theme(Theme::parse(theme));
     }
 
-    if matches!(cli.command, Some(Commands::Update)) {
-        return commands::update::run(&cli, &cfg, &mut out);
+    // Commands that never use repository selection — skip discovery so global
+    // selection flags cannot fail or slow them down.
+    if !command_needs_selection(&cli.command) {
+        return run_without_selection(&cli, &cfg, &mut out);
     }
 
     let selection = discover::select_repos(&cli, &cfg)?;
@@ -66,17 +68,6 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         Some(Commands::Each { command }) => {
             commands::each::run(&selection, command, &cli, &cfg, &mut out)
         }
-        Some(Commands::Config { action }) => {
-            commands::config_cmd::run(action, &cli, &cfg, &mut out)
-        }
-        Some(Commands::Alias { action }) => commands::alias::run(action, &cli, &cfg, &mut out),
-        Some(Commands::Group { action }) => commands::group::run(action, &cli, &cfg, &mut out),
-        Some(Commands::Init { profile, path }) => {
-            commands::scaffold::init(profile.as_deref(), path.as_deref(), &cli, &cfg, &mut out)
-        }
-        Some(Commands::Scaffold { profile, path }) => {
-            commands::scaffold::init(profile.as_deref(), path.as_deref(), &cli, &cfg, &mut out)
-        }
         Some(Commands::Hooks { action }) => {
             commands::hooks::run(action, &selection, &cli, &cfg, &mut out)
         }
@@ -89,15 +80,71 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         Some(Commands::Stale { days }) => {
             commands::stale::run(&selection, *days, &cli, &cfg, &mut out)
         }
-        Some(Commands::SelfUpdate) => commands::self_update::run(&mut out),
         Some(Commands::Git { args }) | Some(Commands::External(args)) => {
             exec::passthrough(&selection, args, &cli, &cfg, &mut out)
         }
         None => commands::overview::run(&selection, &cli, &cfg, &mut out),
-        Some(Commands::Update) => unreachable!("handled before selection"),
-        Some(Commands::Completions { .. } | Commands::Man { .. } | Commands::Version) => {
-            unreachable!("handled early")
+        Some(
+            Commands::Update
+            | Commands::Config { .. }
+            | Commands::Alias { .. }
+            | Commands::Group { .. }
+            | Commands::Init { .. }
+            | Commands::Scaffold { .. }
+            | Commands::SelfUpdate
+            | Commands::Completions { .. }
+            | Commands::Man { .. }
+            | Commands::Version,
+        ) => unreachable!("handled by run_without_selection"),
+    }
+}
+
+fn command_needs_selection(command: &Option<Commands>) -> bool {
+    match command {
+        None => true,
+        Some(
+            Commands::Overview
+            | Commands::List { .. }
+            | Commands::Info { .. }
+            | Commands::Commits { .. }
+            | Commands::Worktrees
+            | Commands::Doctor
+            | Commands::Each { .. }
+            | Commands::Sync { .. }
+            | Commands::Stale { .. }
+            | Commands::Git { .. }
+            | Commands::External(_),
+        ) => true,
+        Some(Commands::Hooks {
+            action: HooksAction::Install { .. },
+        }) => true,
+        Some(Commands::Remotes {
+            action: RemotesAction::AddTo { .. },
+        }) => true,
+        Some(_) => false,
+    }
+}
+
+fn run_without_selection(
+    cli: &Cli,
+    cfg: &config::Config,
+    out: &mut OutputCtx,
+) -> Result<()> {
+    match &cli.command {
+        Some(Commands::Update) => commands::update::run(cli, cfg, out),
+        Some(Commands::Config { action }) => commands::config_cmd::run(action, cli, cfg, out),
+        Some(Commands::Alias { action }) => commands::alias::run(action, cli, cfg, out),
+        Some(Commands::Group { action }) => commands::group::run(action, cli, cfg, out),
+        Some(Commands::Init { profile, path }) => {
+            commands::scaffold::init(profile.as_deref(), path.as_deref(), cli, cfg, out)
         }
+        Some(Commands::Scaffold { profile, path }) => {
+            commands::scaffold::init(profile.as_deref(), path.as_deref(), cli, cfg, out)
+        }
+        Some(Commands::SelfUpdate) => commands::self_update::run(out),
+        Some(Commands::Hooks { action }) => commands::hooks::run(action, &[], cli, cfg, out),
+        Some(Commands::Remotes { action }) => commands::remotes::run(action, &[], cli, cfg, out),
+        _ => unreachable!("command_needs_selection should be false only for the arms above"),
     }
 }
 
