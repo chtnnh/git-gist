@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-12
+
 ### Added
 - Semantic colors in overview/sync/stale tables (clean/dirty, age bands, ahead/behind)
 - `[[auto_enroll]]` config rules + `gg update` to enroll new repos into aliases/groups/tags
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `-j` honored by overview probing and status filters; `-q`/`--timing` honored by `each`
 - `info PATH` respects `--only-*` / `--in` / related selection filters
 - `sync --dry-run --format json` emits JSON instead of suppressing repo headers
+- deb/rpm packaging trigger after cargo-dist releases
 
 ## [1.0.0] - 2026-07-12
 

@@ -9,8 +9,10 @@
 class GitGist < Formula
   desc "Run git commands across all child git repositories"
   homepage "https://github.com/chtnnh/git-gist"
-  url "https://github.com/chtnnh/git-gist/archive/v1.0.0.tar.gz"
-  sha256 "a2dd858ec9da3b499dec5f4b81113fd16c2c972015827e458fb9fc0cb34422be"
+  url "https://github.com/chtnnh/git-gist/archive/v1.1.0.tar.gz"
+  # Placeholder until the tag exists; cargo-dist overwrites the live tap formula with bottles.
+  # After tagging: curl -sL …/archive/v1.1.0.tar.gz | shasum -a 256
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "MIT"
   head "https://github.com/chtnnh/git-gist.git", branch: "main"
 

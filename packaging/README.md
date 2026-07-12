@@ -29,11 +29,11 @@ brew tap chtnnh/tap   # first time; may need `brew trust chtnnh/tap` on Homebrew
 brew install git-gist
 ```
 
-- **v1.0.0 bootstrap:** source-build formula in the tap (already published).
-- **Later tags:** cargo-dist overwrites `Formula/git-gist.rb` with a bottle/prebuilt formula (`tap = "chtnnh/homebrew-tap"` in `dist-workspace.toml`).
+- **v1.0.0 bootstrap:** source-build formula in the tap (historical).
+- **v1.1.0+:** cargo-dist overwrites `Formula/git-gist.rb` with a bottle/prebuilt formula (`tap = "chtnnh/homebrew-tap"` in `dist-workspace.toml`).
 - Requires repo secret `HOMEBREW_TAP_TOKEN` (PAT with Contents write on `chtnnh/homebrew-tap`).
 
-Template / fallback source formula: [`packaging/homebrew/git-gist.rb`](homebrew/git-gist.rb).
+Template / fallback source formula: [`packaging/homebrew/git-gist.rb`](homebrew/git-gist.rb) (kept in sync for operators who build from source).
 
 ## cargo-dist
 

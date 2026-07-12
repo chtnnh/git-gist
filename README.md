@@ -83,7 +83,7 @@ Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 
 | Command | Description |
 |---------|-------------|
-| `overview` / `ov` | Dashboard: branch, dirty, ahead/behind |
+| `overview` / `ov` | Dashboard: branch, dirty, ahead/behind (colored) |
 | `list` / `ls` | List discovered repos |
 | `info` | Detailed status |
 | `commits -n` | Top-N commits |
@@ -91,6 +91,7 @@ Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 | `doctor` | Health checks |
 | `each` | Run arbitrary shell in each repo |
 | `sync [--pull]` | Fetch (+ optional ff-only pull) |
+| `update` | Enroll repos from `[[auto_enroll]]` rules |
 | `stale --days N` | Repos without recent commits |
 | `alias` / `group` | Manage aliases & groups |
 | `config` | Show/get/set config |
