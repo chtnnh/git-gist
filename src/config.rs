@@ -59,7 +59,9 @@ pub struct ScaffoldProfile {
     pub user_name: Option<String>,
     pub user_email: Option<String>,
     pub default_branch: Option<String>,
+    #[serde(default)]
     pub remotes: BTreeMap<String, String>,
+    #[serde(default)]
     pub hooks: Vec<String>,
     pub gitignore: Option<String>,
     pub license: Option<String>,
