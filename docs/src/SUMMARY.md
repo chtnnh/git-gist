@@ -5,6 +5,7 @@
 - [Quick start](./quickstart.md)
 - [Configuration](./config.md)
 - [Commands](./commands.md)
+- [Targeting & flags](./targeting.md)
 - [Shell integration](./shell.md)
 - [Packaging](./packaging.md)
 - [Cookbook](./cookbook.md)

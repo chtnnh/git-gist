@@ -132,6 +132,11 @@ origin-template = "git@github.com:org/NAME.git"
 default_branch = "main"
 user_name = "You"
 user_email = "you@example.com"
+
+[[auto_enroll]]
+path = "/Users/you/src/learning"
+depth = 6
+tags = ["learning"]
 ```
 
 ## Global flags
@@ -146,6 +151,12 @@ commands (`ov`, `list`, `sync`, `each`, passthrough, …). Catalog/config comman
 (`alias`, `group`, `config`, `hooks list`, …) ignore them. Put global flags
 **before** external git verbs (`gg --dry-run status`), since trailing flags after
 passthrough go to git.
+
+## Documentation
+
+- Online: https://gg.chtnnhfoundation.org/
+- Source: [`docs/`](docs/) (mdBook). Local: `mdbook serve docs --open`
+- Before commit/push: `./scripts/ci.sh`
 
 ## License
 

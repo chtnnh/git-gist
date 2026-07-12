@@ -1,0 +1,60 @@
+# Targeting & flags
+
+Global flags are defined once on `gg` and apply to selection-based commands.
+
+## Discovery & selection
+
+| Flag | Effect |
+|------|--------|
+| `--root <DIR>` | Search root (overrides config `root`). Includes the root itself when it is a git repo. Aliases **outside** this root are not auto-included (use `-i`). |
+| `--depth <N>` | Max scan depth (`0` = unlimited) |
+| `-i` / `--in <TARGET>` | Include alias, path, group, basename, or glob (repeatable) |
+| `-x` / `--exclude <TARGET>` | Exclude (repeatable) |
+| `-g` / `--group <NAME>` | Select a named group |
+| `--tag <TAG>` | Filter by config tag |
+| `--refresh` | Bypass discovery cache |
+| `--include-submodules` | Treat gitfile submodules as repos |
+
+Status filters (probe each repo):
+
+| Flag | Keeps |
+|------|-------|
+| `--only-dirty` / `--only-clean` | Working tree state |
+| `--only-ahead` / `--only-behind` | Upstream divergence |
+| `--only-stashed` | Repos with stashes |
+| `--only-detached` | Detached HEAD |
+
+## Execution & output
+
+| Flag | Effect |
+|------|--------|
+| `-j` / `--jobs` | Parallelism for passthrough, `each`, overview probes, and status filters |
+| `--fail-fast` | Stop scheduling more work after first failure (passthrough / `each`) |
+| `--dry-run` | Print planned actions; also honored by `update`, `hooks install`, `remotes` mutations, `init`/`scaffold`, `alias`/`group`/`config set` |
+| `-q` / `--quiet` | Suppress informational output; hides successful passthrough/`each` blocks |
+| `--timing` / `-v` | Per-repo timing on passthrough / `each` |
+| `--format human\|json\|ndjson` | Output shape |
+| `--color auto\|always\|never` | Color |
+| `--theme <NAME>` | `default`, `mono`, `vivid` |
+
+## Which commands use selection?
+
+**Yes** (discovery + filters): `overview`, `list`, `info`, `commits`, `worktrees`, `doctor`, `stale`, `each`, `sync`, `hooks install`, `remotes add-to`, git passthrough.
+
+**No** (ignore `--in` / `--root` / `only_*`): `update` (uses `auto_enroll` paths), `alias`, `group`, `config`, `hooks list`, `remotes list|add|remove`, `init`/`scaffold`, `self-update`, `completions`, `man`, `version`.
+
+## Examples
+
+```bash
+# Current directory only
+gg ov --root .
+
+# One group, dirty repos only
+gg -g work --only-dirty status -sb
+
+# Preview enroll without writing config
+gg update --dry-run
+
+# Reach an alias outside --root
+gg --root . --in elsewhere list
+```

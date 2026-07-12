@@ -8,7 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- mdBook docs deployed to GitHub Pages at https://gg.chtnnhfoundation.org/
+- mdBook user guide on GitHub Pages: https://gg.chtnnhfoundation.org/
+- `./scripts/ci.sh` — local gate matching GitHub Actions (`fmt` + `clippy` + tests + ≥95% coverage)
+
+### Fixed
+- rustfmt drift that failed CI `cargo fmt --check`
+
+## [1.1.0] - 2026-07-12
 
 ### Added
 - Semantic colors in overview/sync/stale tables (clean/dirty, age bands, ahead/behind)
