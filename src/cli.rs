@@ -225,6 +225,9 @@ pub enum Commands {
         days: u64,
     },
 
+    /// Enroll new repos from [[auto_enroll]] rules into aliases/groups/tags
+    Update,
+
     /// Explicit git passthrough (escape hatch for name collisions)
     Git {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]

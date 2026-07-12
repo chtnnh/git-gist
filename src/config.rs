@@ -39,6 +39,9 @@ pub struct Config {
     pub include_submodules: bool,
     #[serde(default)]
     pub repo_overrides: BTreeMap<String, RepoOverride>,
+    /// Rules that enroll newly discovered repos into aliases / groups / tags.
+    #[serde(default)]
+    pub auto_enroll: Vec<AutoEnroll>,
     /// Path this config was loaded/saved from (not serialized)
     #[serde(skip)]
     pub path: Option<PathBuf>,
@@ -82,6 +85,34 @@ pub struct RepoOverride {
     pub default_args: Vec<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+/// Watch a directory and enroll new git repos into aliases, groups, and tags.
+///
+/// ```toml
+/// [[auto_enroll]]
+/// path = "/home/you/src/learning"
+/// depth = 6
+/// tags = ["learning"]
+/// groups = []
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoEnroll {
+    /// Directory to scan for git repositories
+    pub path: PathBuf,
+    /// Max walk depth under `path` (default 6)
+    #[serde(default = "default_enroll_depth")]
+    pub depth: usize,
+    /// Groups that should include each newly enrolled alias
+    #[serde(default)]
+    pub groups: Vec<String>,
+    /// Tags that should include each newly enrolled alias
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+fn default_enroll_depth() -> usize {
+    6
 }
 
 impl Config {
@@ -261,6 +292,9 @@ fn merge_config(mut base: Config, overlay: Config) -> Config {
     }
     for (k, v) in overlay.repo_overrides {
         base.repo_overrides.insert(k, v);
+    }
+    if !overlay.auto_enroll.is_empty() {
+        base.auto_enroll.extend(overlay.auto_enroll);
     }
     if overlay.schema_version != 0 {
         base.schema_version = overlay.schema_version;

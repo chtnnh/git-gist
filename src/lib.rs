@@ -44,6 +44,10 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         out = out.with_theme(Theme::parse(theme));
     }
 
+    if matches!(cli.command, Some(Commands::Update)) {
+        return commands::update::run(&cli, &cfg, &mut out);
+    }
+
     let selection = discover::select_repos(&cli, &cfg)?;
 
     match &cli.command {
@@ -90,6 +94,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
             exec::passthrough(&selection, args, &cli, &cfg, &mut out)
         }
         None => commands::overview::run(&selection, &cli, &cfg, &mut out),
+        Some(Commands::Update) => unreachable!("handled before selection"),
         Some(Commands::Completions { .. } | Commands::Man { .. } | Commands::Version) => {
             unreachable!("handled early")
         }

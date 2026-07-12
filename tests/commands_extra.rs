@@ -310,3 +310,80 @@ fn output_warn_on_empty_selection() {
         .assert()
         .failure();
 }
+
+#[test]
+fn update_enrolls_repos_into_aliases_groups_tags() {
+    let mut f = Fixture::new();
+    let watch = f.root.path().join("watch");
+    fs::create_dir_all(watch.join("nested")).unwrap();
+    // Repos under the watch root
+    let a = watch.join("alpha");
+    let b = watch.join("nested").join("beta");
+    for path in [&a, &b] {
+        fs::create_dir_all(path).unwrap();
+        git(path, &["init", "-b", "main"]);
+        fs::write(path.join("README"), "x\n").unwrap();
+        git(path, &["add", "README"]);
+        git(path, &["commit", "-m", "init"]);
+        f.repos.push(path.clone());
+    }
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+
+[[auto_enroll]]
+path = "{}"
+depth = 4
+tags = ["learn"]
+groups = ["lab"]
+"#,
+        Fixture::toml_path(&watch)
+    ));
+
+    f.gg()
+        .args(["update", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("would add"));
+
+    // Dry-run must not persist aliases
+    f.gg()
+        .args(["alias", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no aliases").or(predicates::str::is_empty()));
+
+    f.gg()
+        .args(["update"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("added"));
+
+    f.gg()
+        .args(["alias", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("alpha"))
+        .stdout(predicates::str::contains("beta"));
+
+    f.gg()
+        .args(["--tag", "learn", "list", "--refresh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("alpha"))
+        .stdout(predicates::str::contains("beta"));
+
+    f.gg()
+        .args(["-g", "lab", "list", "--refresh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("2 repositories"));
+
+    // Idempotent
+    f.gg()
+        .args(["update"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no changes").or(predicates::str::contains("0 new")));
+}
