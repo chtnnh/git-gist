@@ -125,11 +125,7 @@ fn command_needs_selection(command: &Option<Commands>) -> bool {
     }
 }
 
-fn run_without_selection(
-    cli: &Cli,
-    cfg: &config::Config,
-    out: &mut OutputCtx,
-) -> Result<()> {
+fn run_without_selection(cli: &Cli, cfg: &config::Config, out: &mut OutputCtx) -> Result<()> {
     match &cli.command {
         Some(Commands::Update) => commands::update::run(cli, cfg, out),
         Some(Commands::Config { action }) => commands::config_cmd::run(action, cli, cfg, out),

@@ -5,11 +5,7 @@ use crate::repo::{self, Repo};
 use anyhow::Result;
 use rayon::prelude::*;
 
-pub fn apply_status_filters(
-    repos: Vec<Repo>,
-    cli: &Cli,
-    jobs: Option<usize>,
-) -> Result<Vec<Repo>> {
+pub fn apply_status_filters(repos: Vec<Repo>, cli: &Cli, jobs: Option<usize>) -> Result<Vec<Repo>> {
     let jobs = jobs.unwrap_or_else(num_cpus::get).max(1);
     let pool = rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?;
     let filtered: Vec<Repo> = pool.install(|| {

@@ -8,25 +8,23 @@ Requirements: Rust 1.75+, Git.
 
 ```bash
 cargo build
+./scripts/ci.sh   # fmt + clippy + tests + ≥95% coverage (same gates as GitHub Actions)
+```
+
+Or run pieces individually:
+
+```bash
 cargo test --workspace
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
+./scripts/coverage.sh
 ```
 
 Binary name is `gg` (`cargo run -- <args>`).
 
 ### Coverage
 
-Line coverage must stay **≥ 95%** (enforced in CI).
-
-```bash
-./scripts/coverage.sh
-# or:
-cargo llvm-cov --workspace --fail-under-lines 95 \
-  --ignore-filename-regex '(tests/|/cargo/registry/)'
-```
-
-Add or extend tests under `tests/` for every new command or public code path.
+Line coverage must stay **≥ 95%** (enforced in CI via `./scripts/ci.sh` / `./scripts/coverage.sh`).
 
 ## Guidelines
 
