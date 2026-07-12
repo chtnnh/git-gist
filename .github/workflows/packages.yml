@@ -1,9 +1,17 @@
 name: Linux packages
 
-# Attach .deb / .rpm after cargo-dist publishes a GitHub Release.
+# Attach .deb / .rpm after cargo-dist Release succeeds.
+# Note: `on: release` does not fire for releases created with GITHUB_TOKEN.
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,11 +23,23 @@ jobs:
   packages-linux:
     name: deb + rpm
     runs-on: ubuntu-latest
-    if: startsWith(github.event.release.tag_name, 'v')
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
     steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ steps.tag.outputs.name }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -37,4 +57,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+          gh release upload "${{ steps.tag.outputs.name }}" dist/* --clobber
