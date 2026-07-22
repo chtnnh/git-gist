@@ -30,6 +30,33 @@ impl Repo {
     pub fn display_path(&self) -> String {
         self.path.display().to_string()
     }
+
+    /// Human label: basename, or `name (relative-or-absolute path)` when `show_path`.
+    pub fn label(&self, show_path: bool, root: Option<&Path>) -> String {
+        if !show_path {
+            return self.name.clone();
+        }
+        let path_part = root
+            .and_then(|r| {
+                let root = r.canonicalize().unwrap_or_else(|_| r.to_path_buf());
+                let path = self
+                    .path
+                    .canonicalize()
+                    .unwrap_or_else(|_| self.path.clone());
+                path.strip_prefix(&root)
+                    .ok()
+                    .map(|p| p.display().to_string())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| self.display_path());
+        // Prefer a relative path that adds information; fall back to absolute.
+        let path_part = if path_part == self.name {
+            self.display_path()
+        } else {
+            path_part
+        };
+        format!("{} ({})", self.name, path_part)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

@@ -37,6 +37,9 @@ pub struct Config {
     pub theme: Option<String>,
     #[serde(default)]
     pub include_submodules: bool,
+    /// When true, human output shows `name (path)` instead of basename only.
+    #[serde(default)]
+    pub show_path: bool,
     #[serde(default)]
     pub repo_overrides: BTreeMap<String, RepoOverride>,
     /// Rules that enroll newly discovered repos into aliases / groups / tags.
@@ -228,6 +231,9 @@ pub fn load(cli: &Cli) -> Result<Config> {
     if cli.include_submodules {
         cfg.include_submodules = true;
     }
+    if cli.show_path {
+        cfg.show_path = true;
+    }
     if let Some(theme) = &cli.theme {
         cfg.theme = Some(theme.clone());
     }
@@ -290,6 +296,9 @@ fn merge_config(mut base: Config, overlay: Config) -> Config {
     if overlay.include_submodules {
         base.include_submodules = true;
     }
+    if overlay.show_path {
+        base.show_path = true;
+    }
     for (k, v) in overlay.repo_overrides {
         base.repo_overrides.insert(k, v);
     }
@@ -330,6 +339,7 @@ pub fn get_dot_key(cfg: &Config, key: &str) -> Result<String> {
             .unwrap_or_else(|| num_cpus::get().to_string()),
         "theme" => cfg.theme.clone().unwrap_or_else(|| "default".into()),
         "include_submodules" => cfg.include_submodules.to_string(),
+        "show_path" => cfg.show_path.to_string(),
         "schema_version" => cfg.schema_version.to_string(),
         other => bail!("unknown config key: {other}"),
     };
@@ -345,6 +355,7 @@ pub fn set_dot_key(cfg: &mut Config, key: &str, value: &str) -> Result<()> {
         "include_submodules" => {
             cfg.include_submodules = matches!(value, "1" | "true" | "yes" | "on")
         }
+        "show_path" => cfg.show_path = matches!(value, "1" | "true" | "yes" | "on"),
         other => bail!("unknown or unsupported set key: {other}"),
     }
     Ok(())

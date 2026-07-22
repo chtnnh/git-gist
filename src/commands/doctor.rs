@@ -36,16 +36,19 @@ pub fn run(repos: &[Repo], _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Res
     }
 
     let pool = crate::exec::job_pool(cfg)?;
+    let show_path = out.show_path;
+    let root = out.root.clone();
     let mut repo_findings: Vec<DoctorFinding> = pool.install(|| {
         repos
             .par_iter()
             .flat_map(|repo| {
+                let label = repo.label(show_path, root.as_deref());
                 let mut local = Vec::new();
                 let git = repo.path.join(".git");
                 if git.is_file() {
                     local.push(DoctorFinding {
                         level: "info".into(),
-                        repo: Some(repo.name.clone()),
+                        repo: Some(label.clone()),
                         message: "gitfile (.git file) — likely worktree or submodule".into(),
                     });
                 }
@@ -54,28 +57,28 @@ pub fn run(repos: &[Repo], _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Res
                         if status.detached {
                             local.push(DoctorFinding {
                                 level: "warn".into(),
-                                repo: Some(repo.name.clone()),
+                                repo: Some(label.clone()),
                                 message: format!("detached HEAD at {}", status.branch),
                             });
                         }
                         if let Some(op) = status.in_progress {
                             local.push(DoctorFinding {
                                 level: "warn".into(),
-                                repo: Some(repo.name.clone()),
+                                repo: Some(label.clone()),
                                 message: format!("{op} in progress"),
                             });
                         }
                         if status.upstream.is_none() && !status.detached {
                             local.push(DoctorFinding {
                                 level: "info".into(),
-                                repo: Some(repo.name.clone()),
+                                repo: Some(label.clone()),
                                 message: "no upstream configured".into(),
                             });
                         }
                     }
                     Err(e) => local.push(DoctorFinding {
                         level: "error".into(),
-                        repo: Some(repo.name.clone()),
+                        repo: Some(label),
                         message: format!("probe failed: {e}"),
                     }),
                 }

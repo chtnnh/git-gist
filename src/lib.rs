@@ -43,6 +43,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
     if let Some(theme) = cfg.theme.as_deref().or(cli.theme.as_deref()) {
         out = out.with_theme(Theme::parse(theme));
     }
+    out = out.with_show_path(cfg.show_path || cli.show_path, cfg.root.clone());
 
     // Commands that never use repository selection — skip discovery so global
     // selection flags cannot fail or slow them down.

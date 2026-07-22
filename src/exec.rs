@@ -57,6 +57,7 @@ fn misplaced_global_flag_hint(args: &[String]) -> Option<String> {
         "--depth",
         "--format",
         "--theme",
+        "--show-path",
         "--color",
         "--in",
         "--exclude",

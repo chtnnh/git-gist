@@ -33,6 +33,9 @@ fn get_set_dot_keys() {
     assert_eq!(config::get_dot_key(&cfg, "theme").unwrap(), "vivid");
     config::set_dot_key(&mut cfg, "include_submodules", "true").unwrap();
     assert!(cfg.include_submodules);
+    config::set_dot_key(&mut cfg, "show_path", "true").unwrap();
+    assert!(cfg.show_path);
+    assert_eq!(config::get_dot_key(&cfg, "show_path").unwrap(), "true");
     config::set_dot_key(&mut cfg, "jobs", "2").unwrap();
     assert_eq!(cfg.jobs, Some(2));
     assert!(config::set_dot_key(&mut cfg, "nope", "x").is_err());

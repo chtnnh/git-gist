@@ -73,6 +73,41 @@ fn format_age_buckets() {
 }
 
 #[test]
+fn repo_label_show_path_relative_to_root() {
+    let root = tempdir().unwrap();
+    let nested = root.path().join("oss").join("demo");
+    fs::create_dir_all(&nested).unwrap();
+    let repo = Repo::new(nested);
+    assert_eq!(repo.label(false, Some(root.path())), "demo");
+    let with_path = repo.label(true, Some(root.path()));
+    assert!(
+        with_path.starts_with("demo ("),
+        "expected name (path), got {with_path}"
+    );
+    assert!(
+        with_path.contains("oss") && with_path.contains("demo"),
+        "expected relative path under root, got {with_path}"
+    );
+}
+
+#[test]
+fn repo_label_falls_back_to_absolute_when_relative_is_basename() {
+    let root = tempdir().unwrap();
+    let child = root.path().join("solo");
+    fs::create_dir_all(&child).unwrap();
+    let repo = Repo::new(child.clone());
+    let label = repo.label(true, Some(root.path()));
+    assert!(
+        label.contains(child.canonicalize().unwrap().to_str().unwrap()) || label.contains("solo"),
+        "expected absolute path fallback, got {label}"
+    );
+    assert!(
+        !label.ends_with("(solo)"),
+        "should not repeat bare basename"
+    );
+}
+
+#[test]
 fn only_dirty_filter() {
     let (d1, clean) = setup_repo(true);
     let (d2, dirty) = setup_repo(true);

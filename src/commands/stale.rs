@@ -61,7 +61,7 @@ pub fn run(repos: &[Repo], days: u64, _cli: &Cli, cfg: &Config, out: &mut Output
         .map(|r| {
             let age_secs = Some(r.age_days.saturating_mul(86400));
             vec![
-                out.cell(&r.name, CellStyle::Plain),
+                out.cell(out.repo_label_parts(&r.name, &r.path), CellStyle::Plain),
                 out.cell(format!("{}d", r.age_days), OutputCtx::age_style(age_secs)),
                 out.cell(
                     r.last_commit.clone().unwrap_or_else(|| "(none)".into()),

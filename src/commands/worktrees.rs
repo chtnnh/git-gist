@@ -23,7 +23,7 @@ pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Re
         else {
             continue;
         };
-        rows.extend(parse_porcelain(&repo.name, &porcelain));
+        rows.extend(parse_porcelain(&out.repo_label(repo), &porcelain));
     }
 
     if out.is_json() {

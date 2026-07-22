@@ -375,3 +375,30 @@ fn misplaced_global_flag_after_passthrough_errors() {
         .failure()
         .stderr(predicates::str::contains("put it before the verb"));
 }
+
+#[test]
+fn show_path_flag_includes_path_in_overview() {
+    let mut f = Fixture::new();
+    let nested = f.root.path().join("team").join("alpha");
+    fs::create_dir_all(&nested).unwrap();
+    git(&nested, &["init", "-b", "main"]);
+    fs::write(nested.join("README"), "x\n").unwrap();
+    git(&nested, &["add", "README"]);
+    git(&nested, &["commit", "-m", "init"]);
+    f.repos.push(nested);
+
+    let root = f.root.path().to_str().unwrap().to_string();
+    f.gg()
+        .args(["--root", &root, "--show-path", "ov"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("alpha ("))
+        .stdout(predicates::str::contains("team"));
+
+    f.gg()
+        .args(["--root", &root, "ov"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("alpha"))
+        .stdout(predicates::str::contains("alpha (").not());
+}

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mdBook user guide on GitHub Pages: https://gg.chtnnhfoundation.org/
 - `./scripts/ci.sh` — local gate matching GitHub Actions (`fmt` + `clippy` + tests + ≥95% coverage)
 - `scripts/bench.py` + `benches/` — reproducible wall-clock benchmarks for probe-heavy commands
+- `show_path` config + `--show-path` — human tables/findings print `name (path)` (relative under root when possible)
 
 ### Changed
 - Status probing: full overview probe uses 3 git spawns instead of ~8 (`status --porcelain=v2 --branch`, `stash list`, combined `log`); in-progress detection is filesystem-only
@@ -25,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Passthrough commands error with a clear hint when common global flags appear after the git verb (`gg status --dry-run` → put `--dry-run` before `status`)
 
 ### Planned for 1.2.0
-- Show path with repo name — config option + global flag (e.g. `--show-path`) to print the path alongside the basename in human output
 - `gg doctor --config` — warn on stale binary vs latest, empty `auto_enroll`, missing group members, duplicate basenames
 - `--cwd` / default `--root .` when no config root for “just this folder” workflows
 - `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel

@@ -9,6 +9,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 struct CommitRow {
     repo: String,
+    path: String,
     hash: String,
     author: String,
     date: String,
@@ -44,6 +45,7 @@ pub fn run(
                     .unwrap_or_default();
                 all.push(CommitRow {
                     repo: repo.name.clone(),
+                    path: repo.display_path(),
                     hash: hash.chars().take(8).collect(),
                     author,
                     date,
@@ -71,7 +73,7 @@ pub fn run(
         .iter()
         .map(|c| {
             vec![
-                c.repo.clone(),
+                out.repo_label_parts(&c.repo, &c.path),
                 c.hash.clone(),
                 c.date.clone(),
                 c.author.clone(),

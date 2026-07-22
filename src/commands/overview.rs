@@ -82,7 +82,7 @@ pub fn run(repos: &[Repo], _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Res
                 CellStyle::Dim
             };
             vec![
-                out.cell(&r.name, CellStyle::Plain),
+                out.cell(out.repo_label_parts(&r.name, &r.path), CellStyle::Plain),
                 out.cell(&r.branch, branch_style),
                 out.cell(tree, OutputCtx::tree_style(r.dirty)),
                 out.cell(ab, OutputCtx::ahead_behind_style(r.ahead, r.behind)),

@@ -109,6 +109,10 @@ pub struct Cli {
     #[arg(long, global = true, value_name = "NAME")]
     pub theme: Option<String>,
 
+    /// Print path alongside repo name in human tables / findings
+    #[arg(long, global = true)]
+    pub show_path: bool,
+
     /// Built-in command, or external git passthrough
     #[command(subcommand)]
     pub command: Option<Commands>,

@@ -1,12 +1,14 @@
 //! Colored / JSON output helpers.
 
 use crate::cli::OutputFormat;
+use crate::repo::Repo;
 use anyhow::Result;
 use comfy_table::{
     presets::UTF8_FULL, Attribute, Cell, Color as TableColor, ContentArrangement, Table,
 };
 use owo_colors::OwoColorize;
 use std::io::{self, Stderr, Stdout, Write};
+use std::path::PathBuf;
 
 pub struct OutputCtx {
     pub color: bool,
@@ -15,6 +17,8 @@ pub struct OutputCtx {
     #[allow(dead_code)]
     pub verbose: u8,
     pub theme: Theme,
+    pub show_path: bool,
+    pub root: Option<PathBuf>,
     stdout: Stdout,
     stderr: Stderr,
 }
@@ -59,6 +63,8 @@ impl OutputCtx {
             quiet,
             verbose,
             theme: Theme::Default,
+            show_path: false,
+            root: None,
             stdout: io::stdout(),
             stderr: io::stderr(),
         }
@@ -67,6 +73,25 @@ impl OutputCtx {
     pub fn with_theme(mut self, theme: Theme) -> Self {
         self.theme = theme;
         self
+    }
+
+    pub fn with_show_path(mut self, show_path: bool, root: Option<PathBuf>) -> Self {
+        self.show_path = show_path;
+        self.root = root;
+        self
+    }
+
+    pub fn repo_label(&self, repo: &Repo) -> String {
+        repo.label(self.show_path, self.root.as_deref())
+    }
+
+    /// Label from stored name/path (JSON rows keep basename + path separately).
+    pub fn repo_label_parts(&self, name: &str, path: &str) -> String {
+        Repo {
+            path: PathBuf::from(path),
+            name: name.to_string(),
+        }
+        .label(self.show_path, self.root.as_deref())
     }
 
     pub fn stdout(&mut self) -> &mut Stdout {

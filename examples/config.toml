@@ -5,6 +5,7 @@ schema_version = 1
 depth = 6
 # jobs = 8
 # theme = "default"
+# show_path = true
 ignore = [
   "**/node_modules/**",
   "**/target/**",

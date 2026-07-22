@@ -90,7 +90,7 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
             let ab = format!("{}/{}", r.ahead, r.behind);
             let pull = if r.pulled { "pulled" } else { "-" };
             vec![
-                out.cell(&r.name, CellStyle::Plain),
+                out.cell(out.repo_label_parts(&r.name, &r.path), CellStyle::Plain),
                 out.cell(&r.branch, CellStyle::Plain),
                 out.cell(tree, OutputCtx::tree_style(r.dirty)),
                 out.cell(ab, OutputCtx::ahead_behind_style(r.ahead, r.behind)),

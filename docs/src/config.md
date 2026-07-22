@@ -15,7 +15,7 @@ Example file: [`examples/config.toml`](https://github.com/chtnnh/git-gist/blob/m
 
 `schema_version = 1` — bump with migrations documented in CHANGELOG.
 
-Keys: `root`, `depth`, `jobs`, `ignore`, `aliases`, `groups`, `tags`, `remotes`, `profiles`, `hook_packs`, `theme`, `include_submodules`, `repo_overrides`, `auto_enroll`.
+Keys: `root`, `depth`, `jobs`, `ignore`, `aliases`, `groups`, `tags`, `remotes`, `profiles`, `hook_packs`, `theme`, `include_submodules`, `show_path`, `repo_overrides`, `auto_enroll`.
 
 ```bash
 gg config show
@@ -25,7 +25,7 @@ gg alias add api ~/src/api
 gg group add work api web
 ```
 
-CLI overrides for one invocation: `--root`, `--depth`, `-j`, `--theme`, `--include-submodules`.
+CLI overrides for one invocation: `--root`, `--depth`, `-j`, `--theme`, `--include-submodules`, `--show-path`.
 
 ## Auto-enroll
 
@@ -59,3 +59,7 @@ Notes:
 ## Themes
 
 `theme = "default" | "mono" | "vivid"` (or `--theme` on the CLI). Overview / sync / stale tables use semantic cell colors for dirty trees, stale ages (≥30d / ≥90d), and ahead/behind drift.
+
+## Show path with repo name
+
+`show_path = true` (or `--show-path`) prints `name (relative-or-absolute path)` in human overview / sync / stale / commits / doctor / worktrees tables. JSON still uses separate `name` and `path` fields. Relative paths are preferred when the repo is under `--root` / config `root`.

@@ -36,6 +36,7 @@ Status filters (probe each repo):
 | `--format human\|json\|ndjson` | Output shape |
 | `--color auto\|always\|never` | Color |
 | `--theme <NAME>` | `default`, `mono`, `vivid` |
+| `--show-path` | Human tables/findings show `name (path)` (also `show_path = true` in config) |
 
 ## Which commands use selection?
 
