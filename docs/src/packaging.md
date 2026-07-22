@@ -22,7 +22,10 @@ Tap: [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap). cargo-dist
 ```bash
 brew tap chtnnh/tap
 brew install git-gist
+brew update && brew upgrade git-gist
 ```
+
+After upgrading, if `gg version` is stale, check `which -a gg` — a Cargo install under `~/.cargo/bin` often shadows Homebrew. See [Install](./install.md).
 
 ### Debian / RPM
 
@@ -47,4 +50,4 @@ Optional later: nixpkgs / NUR PRs.
 4. Verify Release assets (archives + installers)
 5. Confirm Homebrew tap formula updated
 6. `cargo publish`
-7. Smoke-test: `brew upgrade git-gist`, installer script, `nix run`, `gg version`
+7. Smoke-test: `brew upgrade git-gist`, `which -a gg`, installer script, `nix run`, `gg version`

@@ -6,10 +6,30 @@
 gg ov --root .
 ```
 
+## Show paths in human tables
+
+```bash
+gg --show-path ov
+gg --show-path -g work stale --days 90
+
+# persist
+gg config set show_path true
+```
+
 ## Update all dirty work repos
 
 ```bash
 gg -g work --only-dirty pull --ff-only
+```
+
+## Drop or include an entire directory tree
+
+```bash
+# exclude every selected repo under foundation/
+gg -g oss --exclude ~/code/oss/foundation list
+
+# only repos under that directory
+gg --root ~/code --in ~/code/oss/foundation list
 ```
 
 ## Enroll new learning / OSS checkouts
@@ -65,4 +85,13 @@ gg --dry-run init --profile default ./scratch
 
 ```bash
 gg --dry-run --timing status -sb
+```
+
+## Upgrade Homebrew when PATH has a Cargo `gg`
+
+```bash
+brew update && brew upgrade git-gist
+which -a gg
+# If ~/.cargo/bin/gg wins, either reorder PATH or:
+# cargo uninstall git-gist
 ```

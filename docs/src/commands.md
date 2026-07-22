@@ -6,8 +6,8 @@ See `gg --help` and per-command `--help` for the full flag list.
 
 | Command | Alias | Purpose |
 |---------|-------|---------|
-| `overview` | `ov` | Dashboard: branch, dirty/clean, ahead/behind, age, in-progress (semantic colors) |
-| `list` | `ls` | Discovered / selected repos (`--refresh` bypasses cache) |
+| `overview` | `ov` | Dashboard: branch, dirty/clean, ahead/behind, age, in-progress (semantic colors; `--show-path` adds path to the repo column) |
+| `list` | `ls` | Discovered / selected repos (`--refresh` bypasses cache; always prints name + path) |
 | `info [PATH]` | | Detailed status; optional path still respects `--only-*` / `--in` when those are set |
 | `commits -n N` | | Top-N commits across selection |
 | `worktrees` | | Worktree listing |
@@ -55,6 +55,6 @@ gg pull --rebase
 gg git -- status   # escape hatch when a name collides with a builtin
 ```
 
-Put global flags **before** the git verb: `gg --dry-run status` (not `gg status --dry-run`).
+Put global flags **before** the git verb: `gg --dry-run status` (not `gg status --dry-run`). If a common global flag appears after the verb, `gg` errors with a hint instead of forwarding it to git.
 
 Exit code is non-zero if any selected repo fails (unless the selection is empty).

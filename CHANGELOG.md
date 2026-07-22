@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- README and user guide refreshed for 1.2.0 (Homebrew upgrade / PATH shadowing, `--show-path`, directory `--in`/`--exclude`)
+
 ### Planned
 - `gg doctor --config` — warn on stale binary vs latest, empty `auto_enroll`, missing group members, duplicate basenames
 - `--cwd` / default `--root .` when no config root for “just this folder” workflows

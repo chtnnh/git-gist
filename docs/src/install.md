@@ -1,5 +1,30 @@
 # Install
 
+## Homebrew
+
+```bash
+brew tap chtnnh/tap          # first time
+brew install git-gist
+# or: brew install chtnnh/tap/git-gist
+```
+
+Requires [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap). On Homebrew 6+, you may need `brew trust chtnnh/tap` once.
+
+Upgrade later:
+
+```bash
+brew update && brew upgrade git-gist
+gg version
+```
+
+If `gg version` still shows an older build after upgrading, another `gg` may be earlier on your `PATH` (often `~/.cargo/bin/gg` from `cargo install`). Check with:
+
+```bash
+which -a gg
+```
+
+Prefer the Homebrew binary, reorder `PATH`, or `cargo uninstall git-gist` if you no longer need the Cargo install.
+
 ## Cargo (crates.io / git)
 
 ```bash
@@ -8,16 +33,6 @@ cargo install git-gist --locked
 cargo install --git https://github.com/chtnnh/git-gist --locked
 cargo install --path . --locked
 ```
-
-## Homebrew
-
-```bash
-brew tap chtnnh/tap
-brew install git-gist
-# or: brew install chtnnh/tap/git-gist
-```
-
-Requires [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap). On Homebrew 6+, you may need `brew trust chtnnh/tap` once.
 
 ## Nix
 

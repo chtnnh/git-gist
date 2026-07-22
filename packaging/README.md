@@ -27,11 +27,13 @@ Tap repo: [`chtnnh/homebrew-tap`](https://github.com/chtnnh/homebrew-tap)
 ```bash
 brew tap chtnnh/tap   # first time; may need `brew trust chtnnh/tap` on Homebrew 6+
 brew install git-gist
+brew update && brew upgrade git-gist   # later versions
 ```
 
 - **v1.0.0 bootstrap:** source-build formula in the tap (historical).
 - **v1.1.0+:** cargo-dist overwrites `Formula/git-gist.rb` with a bottle/prebuilt formula (`tap = "chtnnh/homebrew-tap"` in `dist-workspace.toml`).
 - Requires repo secret `HOMEBREW_TAP_TOKEN` (PAT with Contents write on `chtnnh/homebrew-tap`).
+- After `brew upgrade`, if `gg version` is stale, check `which -a gg` — `~/.cargo/bin/gg` often shadows Homebrew.
 
 Template / fallback source formula: [`packaging/homebrew/git-gist.rb`](homebrew/git-gist.rb) (kept in sync for operators who build from source).
 

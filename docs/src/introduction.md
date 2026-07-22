@@ -13,10 +13,12 @@ Design pillars:
 
 ## What’s in 1.2.0
 
-- Faster status probes and `--only-*` filters (fewer git spawns; see `benches/PROBE_PERF.md`)
+- Faster status probes and `--only-*` filters (fewer git spawns; maintainers: `benches/PROBE_PERF.md`)
 - `show_path` / `--show-path` — human tables print `name (path)`
 - Selection fixes: depth-aware under-root aliases, directory `--exclude`/`--in`, clearer passthrough flag-order errors
 - mdBook docs, `./scripts/ci.sh`, and reproducible `scripts/bench.py`
+
+See [Install](./install.md) for Homebrew upgrade / `PATH` shadowing notes, and [Targeting & flags](./targeting.md) for selection behavior.
 
 ## What’s in 1.1.0
 
