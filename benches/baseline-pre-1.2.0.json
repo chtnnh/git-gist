@@ -1,0 +1,100 @@
+{
+  "label": "baseline-pre-1.2.0",
+  "gg_version": "gg 1.1.0",
+  "root": "/Users/chtnnh/Desktop/tech",
+  "repo_count_list": 54,
+  "runs_per_case": 5,
+  "warmup": 1,
+  "results": [
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg version",
+      "n": 5,
+      "mean_s": 0.0043,
+      "stdev_s": 0.0001,
+      "min_s": 0.0041,
+      "max_s": 0.0045,
+      "last_exit": 0,
+      "last_stdout_tail": "gg 1.1.0"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech list",
+      "n": 5,
+      "mean_s": 0.0055,
+      "stdev_s": 0.0001,
+      "min_s": 0.0053,
+      "max_s": 0.0057,
+      "last_exit": 0,
+      "last_stdout_tail": "ers/chtnnh/Desktop/tech/sovereign-networking/reticulum-meshchat | rnsh\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnsh | rnview\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnview | 54 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech --refresh list",
+      "n": 5,
+      "mean_s": 0.0287,
+      "stdev_s": 0.0202,
+      "min_s": 0.019,
+      "max_s": 0.0648,
+      "last_exit": 0,
+      "last_stdout_tail": "ers/chtnnh/Desktop/tech/sovereign-networking/reticulum-meshchat | rnsh\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnsh | rnview\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnview | 54 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech ov",
+      "n": 5,
+      "mean_s": 0.9401,
+      "stdev_s": 0.0086,
+      "min_s": 0.9267,
+      "max_s": 0.9507,
+      "last_exit": 0,
+      "last_stdout_tail": "\u2524 | \u2502 rnview               \u2506 master                          \u2506 clean \u2506 0/0   \u2506 1028d \u2506 -     \u2502 | \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518 | 54 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech --only-dirty list",
+      "n": 5,
+      "mean_s": 0.9447,
+      "stdev_s": 0.0068,
+      "min_s": 0.9361,
+      "max_s": 0.9522,
+      "last_exit": 0,
+      "last_stdout_tail": "Desktop/tech/sovereign-networking/notes | reticulum-meshchat\t/Users/chtnnh/Desktop/tech/sovereign-networking/reticulum-meshchat | rnsh\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnsh | 25 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech -g oss ov",
+      "n": 5,
+      "mean_s": 0.1298,
+      "stdev_s": 0.0013,
+      "min_s": 0.1285,
+      "max_s": 0.1319,
+      "last_exit": 0,
+      "last_stdout_tail": "\u2506 -     \u2502 | \u251c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u253c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u253c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u253c\u254c\u254c\u254c\u254c\u254c\u253c\u254c\u254c\u254c\u254c\u254c\u254c\u253c\u254c\u254c\u254c\u254c\u254c\u254c\u254c\u2524 | \u2502 webring-kit     \u2506 main   \u2506 clean \u2506 0/0 \u2506 47d  \u2506 -     \u2502 | \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518 | 6 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech -g oss --only-dirty list",
+      "n": 5,
+      "mean_s": 0.132,
+      "stdev_s": 0.0023,
+      "min_s": 0.13,
+      "max_s": 0.1356,
+      "last_exit": 0,
+      "last_stdout_tail": "los\t/Users/chtnnh/Desktop/tech/oss/los | together\t/Users/chtnnh/Desktop/tech/oss/together | 2 repositories"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech status -sb",
+      "n": 5,
+      "mean_s": 0.2034,
+      "stdev_s": 0.0234,
+      "min_s": 0.1811,
+      "max_s": 0.228,
+      "last_exit": 0,
+      "last_stdout_tail": "_Store | \u2501\u2501 rnsh \u2501\u2501 /Users/chtnnh/Desktop/tech/sovereign-networking/rnsh | ## main...origin/main | ?? .DS_Store | \u2501\u2501 rnview \u2501\u2501 /Users/chtnnh/Desktop/tech/sovereign-networking/rnview | ## master...origin/master"
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech --depth 2 --refresh list",
+      "n": 5,
+      "mean_s": 0.0065,
+      "stdev_s": 0.0001,
+      "min_s": 0.0063,
+      "max_s": 0.0066,
+      "last_exit": 0,
+      "last_stdout_tail": "ers/chtnnh/Desktop/tech/sovereign-networking/reticulum-meshchat | rnsh\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnsh | rnview\t/Users/chtnnh/Desktop/tech/sovereign-networking/rnview | 23 repositories"
+    }
+  ]
+}

@@ -1,18 +1,26 @@
 //! Status-based repo filters.
 
 use crate::cli::Cli;
-use crate::repo::{self, Repo};
+use crate::repo::{self, ProbeOpts, Repo};
 use anyhow::Result;
 use rayon::prelude::*;
 
 pub fn apply_status_filters(repos: Vec<Repo>, cli: &Cli, jobs: Option<usize>) -> Result<Vec<Repo>> {
     let jobs = jobs.unwrap_or_else(num_cpus::get).max(1);
+    let opts = ProbeOpts::for_cli_filters(
+        cli.only_dirty,
+        cli.only_clean,
+        cli.only_ahead,
+        cli.only_behind,
+        cli.only_stashed,
+        cli.only_detached,
+    );
     let pool = rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?;
     let filtered: Vec<Repo> = pool.install(|| {
         repos
             .into_par_iter()
             .filter_map(|repo| {
-                let status = repo::probe_status(&repo.path).ok()?;
+                let status = repo::probe_with(&repo.path, opts).ok()?;
                 if cli.only_dirty && !status.dirty {
                     return None;
                 }

@@ -35,11 +35,16 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
             Some(crate::cli::Commands::List { refresh: true })
         );
 
-    let mut paths = if !refresh {
+    let cached = if !refresh {
         load_cache(&root, depth, cfg.include_submodules)?
-            .unwrap_or_else(|| discover_repos(&root, depth, cfg).unwrap_or_default())
     } else {
-        discover_repos(&root, depth, cfg)?
+        None
+    };
+    let from_cache = cached.is_some();
+    let mut paths = if let Some(paths) = cached {
+        paths
+    } else {
+        discover_repos(&root, depth, cfg).unwrap_or_default()
     };
 
     // Discovery skips the search root itself (child repos only). When the user
@@ -48,7 +53,7 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         paths.insert(0, root.clone());
     }
 
-    if refresh || load_cache(&root, depth, cfg.include_submodules)?.is_none() {
+    if refresh || !from_cache {
         let _ = save_cache(&root, depth, cfg.include_submodules, &paths);
     }
 
@@ -239,10 +244,10 @@ fn alias_visible_under_root(
 }
 
 fn is_excluded(path: &Path, exclude: &HashSet<PathBuf>) -> bool {
-    exclude.iter().any(|e| {
-        let e = canonicalize_soft(e);
-        path == e.as_path() || path.starts_with(&e)
-    })
+    // `exclude` entries are already canonicalize_soft'd via resolve_target.
+    exclude
+        .iter()
+        .any(|e| path == e.as_path() || path.starts_with(e))
 }
 
 fn default_ignores() -> Vec<String> {

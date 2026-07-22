@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - mdBook user guide on GitHub Pages: https://gg.chtnnhfoundation.org/
 - `./scripts/ci.sh` — local gate matching GitHub Actions (`fmt` + `clippy` + tests + ≥95% coverage)
+- `scripts/bench.py` + `benches/` — reproducible wall-clock benchmarks for probe-heavy commands
+
+### Changed
+- Status probing: full overview probe uses 3 git spawns instead of ~8 (`status --porcelain=v2 --branch`, `stash list`, combined `log`); in-progress detection is filesystem-only
+- `--only-*` filters gather only the fields they need (dirty/ahead/behind/detached → one porcelain call; stash-only skips status)
+- `stale` and `doctor` use partial probes and parallel rayon pools
+- Discovery cache hits no longer re-read the cache file to decide whether to save
 
 ### Fixed
 - rustfmt drift that failed CI `cargo fmt --check`
@@ -18,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Passthrough commands error with a clear hint when common global flags appear after the git verb (`gg status --dry-run` → put `--dry-run` before `status`)
 
 ### Planned for 1.2.0
-- Performance — speed up selection-heavy commands (discovery cache hits, status probes, flag filtering) so large trees like `~/Desktop/tech` stay responsive
 - Show path with repo name — config option + global flag (e.g. `--show-path`) to print the path alongside the basename in human output
 - `gg doctor --config` — warn on stale binary vs latest, empty `auto_enroll`, missing group members, duplicate basenames
 - `--cwd` / default `--root .` when no config root for “just this folder” workflows

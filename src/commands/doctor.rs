@@ -1,8 +1,9 @@
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::output::OutputCtx;
-use crate::repo::Repo;
+use crate::repo::{ProbeOpts, Repo};
 use anyhow::Result;
+use rayon::prelude::*;
 use serde::Serialize;
 use std::io::Write;
 use which::which;
@@ -14,7 +15,7 @@ struct DoctorFinding {
     message: String,
 }
 
-pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Result<()> {
+pub fn run(repos: &[Repo], _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     let mut findings = Vec::new();
 
     if which("git").is_err() {
@@ -34,46 +35,55 @@ pub fn run(repos: &[Repo], _cli: &Cli, _cfg: &Config, out: &mut OutputCtx) -> Re
         });
     }
 
-    for repo in repos {
-        let git = repo.path.join(".git");
-        if git.is_file() {
-            findings.push(DoctorFinding {
-                level: "info".into(),
-                repo: Some(repo.name.clone()),
-                message: "gitfile (.git file) — likely worktree or submodule".into(),
-            });
-        }
-        match crate::repo::probe_status(&repo.path) {
-            Ok(status) => {
-                if status.detached {
-                    findings.push(DoctorFinding {
-                        level: "warn".into(),
-                        repo: Some(repo.name.clone()),
-                        message: format!("detached HEAD at {}", status.branch),
-                    });
-                }
-                if let Some(op) = status.in_progress {
-                    findings.push(DoctorFinding {
-                        level: "warn".into(),
-                        repo: Some(repo.name.clone()),
-                        message: format!("{op} in progress"),
-                    });
-                }
-                if status.upstream.is_none() && !status.detached {
-                    findings.push(DoctorFinding {
+    let pool = crate::exec::job_pool(cfg)?;
+    let mut repo_findings: Vec<DoctorFinding> = pool.install(|| {
+        repos
+            .par_iter()
+            .flat_map(|repo| {
+                let mut local = Vec::new();
+                let git = repo.path.join(".git");
+                if git.is_file() {
+                    local.push(DoctorFinding {
                         level: "info".into(),
                         repo: Some(repo.name.clone()),
-                        message: "no upstream configured".into(),
+                        message: "gitfile (.git file) — likely worktree or submodule".into(),
                     });
                 }
-            }
-            Err(e) => findings.push(DoctorFinding {
-                level: "error".into(),
-                repo: Some(repo.name.clone()),
-                message: format!("probe failed: {e}"),
-            }),
-        }
-    }
+                match crate::repo::probe_with(&repo.path, ProbeOpts::DOCTOR) {
+                    Ok(status) => {
+                        if status.detached {
+                            local.push(DoctorFinding {
+                                level: "warn".into(),
+                                repo: Some(repo.name.clone()),
+                                message: format!("detached HEAD at {}", status.branch),
+                            });
+                        }
+                        if let Some(op) = status.in_progress {
+                            local.push(DoctorFinding {
+                                level: "warn".into(),
+                                repo: Some(repo.name.clone()),
+                                message: format!("{op} in progress"),
+                            });
+                        }
+                        if status.upstream.is_none() && !status.detached {
+                            local.push(DoctorFinding {
+                                level: "info".into(),
+                                repo: Some(repo.name.clone()),
+                                message: "no upstream configured".into(),
+                            });
+                        }
+                    }
+                    Err(e) => local.push(DoctorFinding {
+                        level: "error".into(),
+                        repo: Some(repo.name.clone()),
+                        message: format!("probe failed: {e}"),
+                    }),
+                }
+                local
+            })
+            .collect()
+    });
+    findings.append(&mut repo_findings);
 
     if out.is_json() {
         out.write_json(&findings)?;

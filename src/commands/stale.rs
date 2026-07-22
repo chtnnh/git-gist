@@ -1,8 +1,9 @@
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::output::{CellStyle, OutputCtx};
-use crate::repo::{self, Repo};
+use crate::repo::{self, ProbeOpts, Repo};
 use anyhow::Result;
+use rayon::prelude::*;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -13,35 +14,37 @@ struct StaleRow {
     last_commit: Option<String>,
 }
 
-pub fn run(
-    repos: &[Repo],
-    days: u64,
-    _cli: &Cli,
-    _cfg: &Config,
-    out: &mut OutputCtx,
-) -> Result<()> {
+pub fn run(repos: &[Repo], days: u64, _cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     let threshold = days.saturating_mul(86400);
-    let mut rows = Vec::new();
-    for repo in repos {
-        let status = repo::probe_status(&repo.path).unwrap_or_default();
-        if let Some(age) = status.last_commit_age_secs {
-            if age >= threshold {
-                rows.push(StaleRow {
-                    name: repo.name.clone(),
-                    path: repo.display_path(),
-                    age_days: age / 86400,
-                    last_commit: status.last_commit_subject,
-                });
-            }
-        } else {
-            rows.push(StaleRow {
-                name: repo.name.clone(),
-                path: repo.display_path(),
-                age_days: days,
-                last_commit: None,
-            });
-        }
-    }
+    let pool = crate::exec::job_pool(cfg)?;
+    let mut rows: Vec<StaleRow> = pool.install(|| {
+        repos
+            .par_iter()
+            .filter_map(|repo| {
+                let status = repo::probe_with(&repo.path, ProbeOpts::STALE).unwrap_or_default();
+                if let Some(age) = status.last_commit_age_secs {
+                    if age >= threshold {
+                        Some(StaleRow {
+                            name: repo.name.clone(),
+                            path: repo.display_path(),
+                            age_days: age / 86400,
+                            last_commit: status.last_commit_subject,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(StaleRow {
+                        name: repo.name.clone(),
+                        path: repo.display_path(),
+                        age_days: days,
+                        last_commit: None,
+                    })
+                }
+            })
+            .collect()
+    });
+    rows.sort_by(|a, b| a.path.cmp(&b.path));
 
     if out.is_json() {
         out.write_json(&rows)?;

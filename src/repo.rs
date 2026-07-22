@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -45,6 +46,73 @@ pub struct RepoStatus {
     pub in_progress: Option<String>,
 }
 
+/// Which fields to gather. Fewer bits ⇒ fewer `git` process spawns.
+#[derive(Debug, Clone, Copy)]
+pub struct ProbeOpts {
+    /// `git status --porcelain=v2 --branch` → branch, dirty, upstream, ahead/behind, detached.
+    pub status_branch: bool,
+    /// `git stash list`
+    pub stash: bool,
+    /// `git log -1 --format=%ct%x00%s`
+    pub last_commit: bool,
+    /// Filesystem markers under the git dir (no git process).
+    pub in_progress: bool,
+}
+
+impl ProbeOpts {
+    pub const FULL: Self = Self {
+        status_branch: true,
+        stash: true,
+        last_commit: true,
+        in_progress: true,
+    };
+
+    pub const FILTER_TREE: Self = Self {
+        status_branch: true,
+        stash: false,
+        last_commit: false,
+        in_progress: false,
+    };
+
+    pub const FILTER_STASH: Self = Self {
+        status_branch: false,
+        stash: true,
+        last_commit: false,
+        in_progress: false,
+    };
+
+    pub const STALE: Self = Self {
+        status_branch: false,
+        stash: false,
+        last_commit: true,
+        in_progress: false,
+    };
+
+    pub const DOCTOR: Self = Self {
+        status_branch: true,
+        stash: false,
+        last_commit: false,
+        in_progress: true,
+    };
+
+    pub fn for_cli_filters(
+        only_dirty: bool,
+        only_clean: bool,
+        only_ahead: bool,
+        only_behind: bool,
+        only_stashed: bool,
+        only_detached: bool,
+    ) -> Self {
+        let need_tree = only_dirty || only_clean || only_ahead || only_behind || only_detached;
+        Self {
+            status_branch: need_tree,
+            stash: only_stashed,
+            last_commit: false,
+            in_progress: false,
+        }
+    }
+}
+
 pub fn git_in(repo: &Path, args: &[&str]) -> Result<std::process::Output> {
     git_command()
         .args(args)
@@ -63,67 +131,112 @@ pub fn git_stdout(repo: &Path, args: &[&str]) -> Result<String> {
 }
 
 pub fn probe_status(repo: &Path) -> Result<RepoStatus> {
+    probe_with(repo, ProbeOpts::FULL)
+}
+
+pub fn probe_with(repo: &Path, opts: ProbeOpts) -> Result<RepoStatus> {
     let mut status = RepoStatus::default();
 
-    // Branch / detached
-    match git_stdout(repo, &["rev-parse", "--abbrev-ref", "HEAD"]) {
-        Ok(b) if b == "HEAD" => {
-            status.detached = true;
-            status.branch = git_stdout(repo, &["rev-parse", "--short", "HEAD"])
-                .unwrap_or_else(|_| "detached".into());
-        }
-        Ok(b) => status.branch = b,
-        Err(_) => status.branch = "(unknown)".into(),
-    }
-
-    // Dirty: porcelain
-    if let Ok(out) = git_stdout(repo, &["status", "--porcelain"]) {
-        status.dirty = !out.is_empty();
-    }
-
-    // Upstream ahead/behind
-    if let Ok(upstream) = git_stdout(repo, &["rev-parse", "--abbrev-ref", "@{upstream}"]) {
-        status.upstream = Some(upstream);
-        if let Ok(counts) = git_stdout(
-            repo,
-            &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
-        ) {
-            let mut parts = counts.split_whitespace();
-            status.ahead = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-            status.behind = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    if opts.status_branch {
+        match git_stdout(repo, &["status", "--porcelain=v2", "--branch"]) {
+            Ok(out) => apply_porcelain_v2(&mut status, &out),
+            Err(_) => status.branch = "(unknown)".into(),
         }
     }
 
-    // Stashes
-    if let Ok(out) = git_stdout(repo, &["stash", "list"]) {
-        status.stashed = if out.is_empty() {
-            0
-        } else {
-            out.lines().count() as u32
-        };
-    }
-
-    // Last commit
-    if let Ok(epoch) = git_stdout(repo, &["log", "-1", "--format=%ct"]) {
-        if let Ok(ts) = epoch.parse::<u64>() {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(ts);
-            status.last_commit_age_secs = Some(now.saturating_sub(ts));
+    if opts.stash {
+        if let Ok(out) = git_stdout(repo, &["stash", "list"]) {
+            status.stashed = if out.is_empty() {
+                0
+            } else {
+                out.lines().count() as u32
+            };
         }
     }
-    if let Ok(subj) = git_stdout(repo, &["log", "-1", "--format=%s"]) {
-        status.last_commit_subject = Some(subj);
+
+    if opts.last_commit {
+        if let Ok(out) = git_stdout(repo, &["log", "-1", "--format=%ct%x00%s"]) {
+            let mut parts = out.split('\0');
+            if let Some(epoch) = parts.next() {
+                if let Ok(ts) = epoch.parse::<u64>() {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(ts);
+                    status.last_commit_age_secs = Some(now.saturating_sub(ts));
+                }
+            }
+            if let Some(subj) = parts.next() {
+                if !subj.is_empty() {
+                    status.last_commit_subject = Some(subj.to_string());
+                }
+            }
+        }
     }
 
-    // In-progress operations
-    let git_dir = git_stdout(repo, &["rev-parse", "--git-dir"]).unwrap_or_else(|_| ".git".into());
-    let git_dir_path = if Path::new(&git_dir).is_absolute() {
-        PathBuf::from(&git_dir)
-    } else {
-        repo.join(&git_dir)
-    };
+    if opts.in_progress {
+        status.in_progress = detect_in_progress(repo);
+    }
+
+    Ok(status)
+}
+
+/// Parse `git status --porcelain=v2 --branch` into status fields.
+pub fn apply_porcelain_v2(status: &mut RepoStatus, out: &str) {
+    let mut oid: Option<&str> = None;
+    for line in out.lines() {
+        if let Some(rest) = line.strip_prefix("# branch.oid ") {
+            oid = Some(rest.trim());
+        } else if let Some(rest) = line.strip_prefix("# branch.head ") {
+            let rest = rest.trim();
+            if rest == "(detached)" || rest.starts_with("(detached") {
+                status.detached = true;
+                status.branch = oid
+                    .map(|o| o.chars().take(7).collect())
+                    .unwrap_or_else(|| "detached".into());
+            } else {
+                status.branch = rest.to_string();
+            }
+        } else if let Some(rest) = line.strip_prefix("# branch.upstream ") {
+            status.upstream = Some(rest.trim().to_string());
+        } else if let Some(rest) = line.strip_prefix("# branch.ab ") {
+            for part in rest.split_whitespace() {
+                if let Some(n) = part.strip_prefix('+') {
+                    status.ahead = n.parse().unwrap_or(0);
+                } else if let Some(n) = part.strip_prefix('-') {
+                    status.behind = n.parse().unwrap_or(0);
+                }
+            }
+        } else if !line.is_empty() && !line.starts_with('#') {
+            status.dirty = true;
+        }
+    }
+    if status.branch.is_empty() {
+        status.branch = "(unknown)".into();
+    }
+}
+
+pub fn resolve_git_dir(repo: &Path) -> PathBuf {
+    let git = repo.join(".git");
+    if git.is_dir() {
+        return git;
+    }
+    if git.is_file() {
+        if let Ok(contents) = fs::read_to_string(&git) {
+            for line in contents.lines() {
+                let line = line.trim();
+                if let Some(rest) = line.strip_prefix("gitdir:") {
+                    let p = PathBuf::from(rest.trim());
+                    return if p.is_absolute() { p } else { repo.join(p) };
+                }
+            }
+        }
+    }
+    git
+}
+
+fn detect_in_progress(repo: &Path) -> Option<String> {
+    let git_dir = resolve_git_dir(repo);
     for (marker, label) in [
         ("MERGE_HEAD", "merge"),
         ("rebase-merge", "rebase"),
@@ -132,13 +245,11 @@ pub fn probe_status(repo: &Path) -> Result<RepoStatus> {
         ("REVERT_HEAD", "revert"),
         ("BISECT_LOG", "bisect"),
     ] {
-        if git_dir_path.join(marker).exists() {
-            status.in_progress = Some(label.into());
-            break;
+        if git_dir.join(marker).exists() {
+            return Some(label.into());
         }
     }
-
-    Ok(status)
+    None
 }
 
 pub fn format_age(secs: u64) -> String {

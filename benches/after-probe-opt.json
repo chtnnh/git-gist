@@ -1,0 +1,101 @@
+{
+  "label": "after-probe-opt",
+  "gg_version": "gg 1.1.0",
+  "gg_bin": "/Users/chtnnh/.cargo/bin/gg",
+  "root": "/Users/chtnnh/Desktop/tech",
+  "repo_count_list": 54,
+  "runs_per_case": 5,
+  "warmup": 1,
+  "results": [
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg version",
+      "n": 5,
+      "mean_s": 0.0048,
+      "stdev_s": 0.0004,
+      "min_s": 0.0044,
+      "max_s": 0.0054,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech list",
+      "n": 5,
+      "mean_s": 0.0053,
+      "stdev_s": 0.0002,
+      "min_s": 0.0051,
+      "max_s": 0.0056,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech --refresh list",
+      "n": 5,
+      "mean_s": 0.0189,
+      "stdev_s": 0.0005,
+      "min_s": 0.0185,
+      "max_s": 0.0197,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech ov",
+      "n": 5,
+      "mean_s": 0.4236,
+      "stdev_s": 0.0344,
+      "min_s": 0.3913,
+      "max_s": 0.4739,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech --only-dirty list",
+      "n": 5,
+      "mean_s": 0.1843,
+      "stdev_s": 0.0123,
+      "min_s": 0.1719,
+      "max_s": 0.2006,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech -g oss ov",
+      "n": 5,
+      "mean_s": 0.0614,
+      "stdev_s": 0.002,
+      "min_s": 0.0586,
+      "max_s": 0.0638,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech -g oss --only-dirty list",
+      "n": 5,
+      "mean_s": 0.0346,
+      "stdev_s": 0.001,
+      "min_s": 0.033,
+      "max_s": 0.0358,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech status -sb",
+      "n": 5,
+      "mean_s": 0.1744,
+      "stdev_s": 0.0046,
+      "min_s": 0.1691,
+      "max_s": 0.1793,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech stale --days 30",
+      "n": 5,
+      "mean_s": 0.1253,
+      "stdev_s": 0.0028,
+      "min_s": 0.1225,
+      "max_s": 0.1291,
+      "last_exit": 0
+    },
+    {
+      "cmd": "/Users/chtnnh/.cargo/bin/gg --root /Users/chtnnh/Desktop/tech doctor",
+      "n": 5,
+      "mean_s": 0.2047,
+      "stdev_s": 0.0192,
+      "min_s": 0.1843,
+      "max_s": 0.2235,
+      "last_exit": 0
+    }
+  ]
+}
