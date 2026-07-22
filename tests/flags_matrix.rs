@@ -250,3 +250,128 @@ fn format_json_on_catalog_commands() {
         .success()
         .stdout(predicates::str::contains("schema_version"));
 }
+
+#[test]
+fn depth_flag_skips_deep_aliases_under_root() {
+    let mut f = Fixture::new();
+    let shallow = f.add_repo("top", true);
+    let deep = f.root.path().join("lvl1").join("nested");
+    fs::create_dir_all(&deep).unwrap();
+    git(&deep, &["init", "-b", "main"]);
+    fs::write(deep.join("README"), "x\n").unwrap();
+    git(&deep, &["add", "README"]);
+    git(&deep, &["commit", "-m", "init"]);
+    f.repos.push(deep.clone());
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+root = "{root}"
+[aliases]
+top = "{shallow}"
+nested = "{deep}"
+"#,
+        root = Fixture::toml_path(f.root.path()),
+        shallow = Fixture::toml_path(&shallow),
+        deep = Fixture::toml_path(&deep),
+    ));
+
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--depth",
+            "1",
+            "--refresh",
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("top"))
+        .stdout(predicates::str::contains("nested").not());
+
+    // Explicit -i still reaches the deep alias.
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--depth",
+            "1",
+            "--in",
+            "nested",
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("nested"));
+}
+
+#[test]
+fn exclude_directory_drops_child_repos() {
+    let mut f = Fixture::new();
+    let parent = f.root.path().join("foundation");
+    let child_a = parent.join("aspects-a");
+    let child_b = parent.join("aspects-b");
+    let sibling = f.root.path().join("other");
+    for path in [&child_a, &child_b, &sibling] {
+        fs::create_dir_all(path).unwrap();
+        git(path, &["init", "-b", "main"]);
+        fs::write(path.join("README"), "x\n").unwrap();
+        git(path, &["add", "README"]);
+        git(path, &["commit", "-m", "init"]);
+        f.repos.push(path.clone());
+    }
+
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--exclude",
+            parent.to_str().unwrap(),
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("other"))
+        .stdout(predicates::str::contains("aspects-a").not())
+        .stdout(predicates::str::contains("aspects-b").not());
+}
+
+#[test]
+fn include_directory_selects_child_repos() {
+    let mut f = Fixture::new();
+    let parent = f.root.path().join("bundle");
+    let child = parent.join("svc");
+    let outside = f.root.path().join("alone");
+    for path in [&child, &outside] {
+        fs::create_dir_all(path).unwrap();
+        git(path, &["init", "-b", "main"]);
+        fs::write(path.join("README"), "x\n").unwrap();
+        git(path, &["add", "README"]);
+        git(path, &["commit", "-m", "init"]);
+        f.repos.push(path.clone());
+    }
+
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--in",
+            parent.to_str().unwrap(),
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("svc"))
+        .stdout(predicates::str::contains("alone").not());
+}
+
+#[test]
+fn misplaced_global_flag_after_passthrough_errors() {
+    let f = Fixture::with_repos(&["a"]);
+    f.gg()
+        .args(["status", "--dry-run"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("put it before the verb"));
+}

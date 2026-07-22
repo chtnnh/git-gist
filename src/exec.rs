@@ -31,8 +31,56 @@ pub fn passthrough(
     if args.is_empty() {
         anyhow::bail!("no git arguments provided");
     }
+    if let Some(hint) = misplaced_global_flag_hint(args) {
+        anyhow::bail!("{hint}");
+    }
     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
     run_git(repos, &argv, cli, cfg, out)
+}
+
+fn misplaced_global_flag_hint(args: &[String]) -> Option<String> {
+    // External subcommands swallow trailing globals into git argv. Detect the
+    // common footgun: `gg status --dry-run` instead of `gg --dry-run status`.
+    const GLOBALS: &[&str] = &[
+        "--dry-run",
+        "--fail-fast",
+        "--timing",
+        "--refresh",
+        "--only-dirty",
+        "--only-clean",
+        "--only-ahead",
+        "--only-behind",
+        "--only-stashed",
+        "--only-detached",
+        "--include-submodules",
+        "--root",
+        "--depth",
+        "--format",
+        "--theme",
+        "--color",
+        "--in",
+        "--exclude",
+        "--group",
+        "--tag",
+        "-j",
+        "-q",
+        "-i",
+        "-x",
+        "-g",
+    ];
+    for (idx, arg) in args.iter().enumerate().skip(1) {
+        let name = arg.split('=').next().unwrap_or(arg);
+        if GLOBALS.contains(&name) {
+            return Some(format!(
+                "global flag `{name}` was passed after the git verb and would be forwarded to git; \
+                 put it before the verb (e.g. `gg {name} {} …`)",
+                args[0]
+            ));
+        }
+        // Also catch `--root DIR` style when the flag alone matches and next is a value.
+        let _ = idx;
+    }
+    None
 }
 
 /// Build a rayon pool sized from `--jobs` / config.

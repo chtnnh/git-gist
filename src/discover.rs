@@ -52,11 +52,15 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         let _ = save_cache(&root, depth, cfg.include_submodules, &paths);
     }
 
-    // Include aliased repos that live under the search root (so depth/ignore
-    // still pick them up). Aliases outside the root stay available via `-i`.
+    // Include aliased repos under the search root only when they would also
+    // pass discovery depth / ignore rules. Out-of-root aliases stay via `-i`.
+    let ignores = build_ignore_set(&root, cfg)?;
     for path in cfg.aliases.values() {
         let canonical = canonicalize_soft(path);
         if !is_under_root(&canonical, &root) {
+            continue;
+        }
+        if !alias_visible_under_root(&canonical, &root, depth, &ignores) {
             continue;
         }
         if is_git_repo(&canonical) && !paths.iter().any(|p| p == &canonical) {
@@ -77,13 +81,7 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         }
     }
 
-    // If only groups were specified without --in, selected was filled above.
-    // If both empty, selected is all paths.
-    if cli.include.is_empty() && !cli.group.is_empty() {
-        // already filled from groups
-    }
-
-    // Excludes
+    // Excludes (exact match or directory prefix)
     let mut exclude: HashSet<PathBuf> = HashSet::new();
     for target in &cli.exclude {
         for p in resolve_target(target, cfg, &paths)? {
@@ -108,7 +106,7 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         })
     });
 
-    selected.retain(|p| !exclude.contains(p));
+    selected.retain(|p| !is_excluded(p, &exclude));
 
     let mut repos: Vec<Repo> = selected.into_iter().map(Repo::new).collect();
     repos.sort_by(|a, b| a.path.cmp(&b.path));
@@ -135,23 +133,7 @@ fn resolve_root(cli: &Cli, cfg: &Config) -> Result<PathBuf> {
 }
 
 pub fn discover_repos(root: &Path, max_depth: usize, cfg: &Config) -> Result<Vec<PathBuf>> {
-    let mut ignore_builder = GlobSetBuilder::new();
-    for pattern in default_ignores().iter().chain(cfg.ignore.iter()) {
-        ignore_builder
-            .add(Glob::new(pattern).with_context(|| format!("bad ignore glob: {pattern}"))?);
-    }
-    // .ggignore next to root
-    let ggignore = root.join(".ggignore");
-    if ggignore.is_file() {
-        for line in fs::read_to_string(&ggignore)?.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            ignore_builder.add(Glob::new(line)?);
-        }
-    }
-    let ignores = ignore_builder.build()?;
+    let ignores = build_ignore_set(root, cfg)?;
 
     let root_canon = canonicalize_soft(root);
     let mut found = Vec::new();
@@ -205,6 +187,64 @@ pub fn discover_repos(root: &Path, max_depth: usize, cfg: &Config) -> Result<Vec
     Ok(found)
 }
 
+fn build_ignore_set(root: &Path, cfg: &Config) -> Result<globset::GlobSet> {
+    let mut ignore_builder = GlobSetBuilder::new();
+    for pattern in default_ignores().iter().chain(cfg.ignore.iter()) {
+        ignore_builder
+            .add(Glob::new(pattern).with_context(|| format!("bad ignore glob: {pattern}"))?);
+    }
+    let ggignore = root.join(".ggignore");
+    if ggignore.is_file() {
+        for line in fs::read_to_string(&ggignore)?.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            ignore_builder.add(Glob::new(line)?);
+        }
+    }
+    Ok(ignore_builder.build()?)
+}
+
+fn alias_visible_under_root(
+    path: &Path,
+    root: &Path,
+    max_depth: usize,
+    ignores: &globset::GlobSet,
+) -> bool {
+    let path = canonicalize_soft(path);
+    let root = canonicalize_soft(root);
+    if path == root {
+        return true;
+    }
+    let Ok(rel) = path.strip_prefix(&root) else {
+        return false;
+    };
+    let depth = rel.components().count();
+    if depth > max_depth {
+        return false;
+    }
+    // Match ignore against the relative path and each ancestor segment prefix.
+    if ignores.is_match(rel) || ignores.is_match(&path) {
+        return false;
+    }
+    let mut acc = PathBuf::new();
+    for comp in rel.components() {
+        acc.push(comp);
+        if ignores.is_match(&acc) {
+            return false;
+        }
+    }
+    true
+}
+
+fn is_excluded(path: &Path, exclude: &HashSet<PathBuf>) -> bool {
+    exclude.iter().any(|e| {
+        let e = canonicalize_soft(e);
+        path == e.as_path() || path.starts_with(&e)
+    })
+}
+
 fn default_ignores() -> Vec<String> {
     vec![
         "**/node_modules/**".into(),
@@ -248,7 +288,21 @@ pub fn resolve_target(target: &str, cfg: &Config, discovered: &[PathBuf]) -> Res
     // Path?
     let as_path = PathBuf::from(target);
     if as_path.exists() {
-        return Ok(vec![canonicalize_soft(&as_path)]);
+        let p = canonicalize_soft(&as_path);
+        if p.is_dir() {
+            // Directory: match all discovered repos under this prefix (and the
+            // dir itself when it is a git repo).
+            let mut matches: Vec<_> = discovered
+                .iter()
+                .filter(|d| is_under_root(d, &p))
+                .cloned()
+                .collect();
+            if matches.is_empty() {
+                matches.push(p);
+            }
+            return Ok(matches);
+        }
+        return Ok(vec![p]);
     }
     // Glob against discovered
     if target.contains('*') || target.contains('?') {

@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - rustfmt drift that failed CI `cargo fmt --check`
+- Under-root alias injection now respects `--depth`, config `ignore`, and `.ggignore` (deep aliases no longer bypass discovery limits)
+- `-x` / `--exclude` and `-i` / `--in` treat existing directories as path prefixes (exclude/include all selected repos under that tree)
+- Passthrough commands error with a clear hint when common global flags appear after the git verb (`gg status --dry-run` → put `--dry-run` before `status`)
+
+### Planned for 1.2.0
+- Performance — speed up selection-heavy commands (discovery cache hits, status probes, flag filtering) so large trees like `~/Desktop/tech` stay responsive
+- Show path with repo name — config option + global flag (e.g. `--show-path`) to print the path alongside the basename in human output
+- `gg doctor --config` — warn on stale binary vs latest, empty `auto_enroll`, missing group members, duplicate basenames
+- `--cwd` / default `--root .` when no config root for “just this folder” workflows
+- `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel
+- `gg update` wizard suggestions when `auto_enroll` is empty; `gg group sync` from discovery
+- Disambiguate basename collisions in human output (relative path under root; overlaps with `--show-path`)
+- Quiet overview / summary-only mode for large dirty trees
+- Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases
 
 ## [1.1.0] - 2026-07-12
 
