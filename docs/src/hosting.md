@@ -37,3 +37,7 @@ gh workflow run docs.yml
 4. Try another network or a private browser window.
 
 Operator notes: [`docs/README.md`](https://github.com/chtnnh/git-gist/blob/main/docs/README.md).
+
+## Analytics
+
+Cloudflare Web Analytics is injected via [`theme/head.hbs`](https://github.com/chtnnh/git-gist/blob/main/docs/theme/head.hbs) on every page of the built book.
