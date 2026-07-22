@@ -115,6 +115,36 @@ fn doctor_detached_and_json() {
 }
 
 #[test]
+fn doctor_reports_gitfile_worktree() {
+    let f = Fixture::with_repos(&["mainrepo"]);
+    let linked = f.root.path().join("linked");
+    fs::create_dir_all(&linked).unwrap();
+    let real_git = f.repos[0].join(".git");
+    fs::write(
+        linked.join(".git"),
+        format!("gitdir: {}\n", real_git.display()),
+    )
+    .unwrap();
+
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--in",
+            linked.to_str().unwrap(),
+            "--include-submodules",
+            "doctor",
+        ])
+        .assert()
+        .success()
+        .stdout(
+            predicates::str::contains("gitfile")
+                .or(predicates::str::contains("worktree"))
+                .or(predicates::str::contains("submodule")),
+        );
+}
+
+#[test]
 fn only_detached_filter() {
     let f = Fixture::with_repos(&["onbranch", "detachme"]);
     git(&f.repos[1], &["checkout", "--detach", "HEAD"]);

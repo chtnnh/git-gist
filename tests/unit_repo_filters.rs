@@ -6,7 +6,6 @@ use git_gist::filters;
 use git_gist::repo::{self, ProbeOpts, Repo, RepoStatus};
 use serial_test::serial;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 use tempfile::tempdir;
 
@@ -188,7 +187,10 @@ fn probe_opts_for_cli_filters_skips_unused_work() {
 
 #[test]
 #[serial]
+#[cfg(unix)]
 fn probe_with_filter_tree_uses_few_git_invocations() {
+    use std::os::unix::fs::PermissionsExt;
+
     let (_dir, repo) = setup_repo(true);
     let wrapper_dir = tempdir().unwrap();
     let log = wrapper_dir.path().join("git.log");
@@ -279,4 +281,88 @@ fn resolve_git_dir_for_normal_repo() {
     let git_dir = repo::resolve_git_dir(&repo.path);
     assert!(git_dir.ends_with(".git"));
     assert!(git_dir.is_dir());
+}
+
+#[test]
+fn resolve_git_dir_from_gitfile() {
+    let dir = tempdir().unwrap();
+    let work = dir.path().join("work");
+    let real = dir.path().join("real.git");
+    fs::create_dir_all(&work).unwrap();
+    fs::create_dir_all(&real).unwrap();
+
+    fs::write(work.join(".git"), format!("gitdir: {}\n", real.display())).unwrap();
+    assert_eq!(repo::resolve_git_dir(&work), real);
+
+    let work2 = dir.path().join("work2");
+    fs::create_dir_all(&work2).unwrap();
+    fs::write(work2.join(".git"), "gitdir: ../real.git\n").unwrap();
+    assert_eq!(repo::resolve_git_dir(&work2), work2.join("../real.git"));
+}
+
+#[test]
+fn apply_porcelain_v2_unknown_when_no_head() {
+    let mut status = RepoStatus::default();
+    repo::apply_porcelain_v2(&mut status, "# branch.oid abcdef0\n");
+    assert_eq!(status.branch, "(unknown)");
+}
+
+#[test]
+fn apply_porcelain_v2_detached_without_oid_uses_fallback() {
+    let mut status = RepoStatus::default();
+    repo::apply_porcelain_v2(&mut status, "# branch.head (detached from deadbeef)\n");
+    assert!(status.detached);
+    assert_eq!(status.branch, "detached");
+}
+
+#[test]
+fn probe_stale_and_doctor_opts() {
+    let (_dir, repo) = setup_repo(true);
+    let stale = repo::probe_with(&repo.path, ProbeOpts::STALE).unwrap();
+    assert!(stale.last_commit_age_secs.is_some());
+    assert_eq!(stale.last_commit_subject.as_deref(), Some("c"));
+    assert!(stale.branch.is_empty());
+
+    fs::write(repo.path.join(".git").join("MERGE_HEAD"), "deadbeef\n").unwrap();
+    let doctor = repo::probe_with(&repo.path, ProbeOpts::DOCTOR).unwrap();
+    assert_eq!(doctor.in_progress.as_deref(), Some("merge"));
+    assert_eq!(doctor.branch, "main");
+}
+
+#[test]
+fn probe_filter_stash_counts_entries() {
+    let (_dir, repo) = setup_repo(true);
+    fs::write(repo.path.join("extra"), "y").unwrap();
+    let stash = Command::new("git")
+        .args(["stash", "push", "-u", "-m", "wip"])
+        .current_dir(&repo.path)
+        .env("GIT_AUTHOR_NAME", "T")
+        .env("GIT_AUTHOR_EMAIL", "t@e.com")
+        .env("GIT_COMMITTER_NAME", "T")
+        .env("GIT_COMMITTER_EMAIL", "t@e.com")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(stash.success());
+    let status = repo::probe_with(&repo.path, ProbeOpts::FILTER_STASH).unwrap();
+    assert!(status.stashed >= 1);
+    assert!(status.branch.is_empty());
+}
+
+#[test]
+fn output_repo_label_respects_show_path() {
+    use git_gist::cli::OutputFormat;
+    use git_gist::output::OutputCtx;
+
+    let root = tempdir().unwrap();
+    let nested = root.path().join("oss").join("demo");
+    fs::create_dir_all(&nested).unwrap();
+    let repo = Repo::new(nested);
+    let mut out = OutputCtx::new(false, OutputFormat::Human, false, 0);
+    assert_eq!(out.repo_label(&repo), "demo");
+    out = out.with_show_path(true, Some(root.path().to_path_buf()));
+    let label = out.repo_label(&repo);
+    assert!(label.starts_with("demo ("));
+    assert!(label.contains("oss"));
 }
