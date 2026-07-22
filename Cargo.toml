@@ -1,6 +1,6 @@
 [package]
 name = "git-gist"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 description = "Run git commands across all child git repositories — fast multi-repo CLI"
 license = "MIT"

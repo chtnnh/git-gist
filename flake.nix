@@ -18,7 +18,7 @@
         rust = pkgs.rust-bin.stable.latest.default;
         git-gist = pkgs.rustPlatform.buildRustPackage {
           pname = "git-gist";
-          version = "1.1.0";
+          version = "1.2.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           nativeBuildInputs = [ rust ];

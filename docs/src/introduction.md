@@ -2,7 +2,7 @@
 
 **git-gist** (`gg`) is a fast, cross-platform CLI that discovers git repositories under a root and runs git (or built-in insights) across them in parallel.
 
-Current release: **1.1.0**. User guide: [https://gg.chtnnhfoundation.org/](https://gg.chtnnhfoundation.org/).
+Current release: **1.2.0**. User guide: [https://gg.chtnnhfoundation.org/](https://gg.chtnnhfoundation.org/).
 
 Design pillars:
 
@@ -10,6 +10,13 @@ Design pillars:
 2. **Direct passthrough** — `gg status` means `git status` everywhere selected
 3. **Reserved builtins** — overview, list, sync, update, scaffold, etc. win over passthrough
 4. **Scriptable** — JSON/NDJSON, stable exit aggregation, dry-run
+
+## What’s in 1.2.0
+
+- Faster status probes and `--only-*` filters (fewer git spawns; see `benches/PROBE_PERF.md`)
+- `show_path` / `--show-path` — human tables print `name (path)`
+- Selection fixes: depth-aware under-root aliases, directory `--exclude`/`--in`, clearer passthrough flag-order errors
+- mdBook docs, `./scripts/ci.sh`, and reproducible `scripts/bench.py`
 
 ## What’s in 1.1.0
 
