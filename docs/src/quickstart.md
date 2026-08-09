@@ -9,6 +9,8 @@ gg --only-dirty pull
 gg -g work fetch
 ```
 
+![`gg -g oss ov`](./images/overview-oss.png)
+
 Scope to the current directory (honors `--root`; does not pull in out-of-root aliases):
 
 ```bash
@@ -37,6 +39,8 @@ gg update --dry-run
 gg update
 ```
 
+![`gg update --dry-run`](./images/update-dry-run.png)
+
 Global flags go **before** a passthrough git verb:
 
 ```bash
@@ -50,8 +54,11 @@ Generate completions:
 gg completions zsh > ~/.zsh/completions/_gg
 ```
 
-Man page:
+Man pages (root + subcommands):
 
 ```bash
+# writes gg.1, gg-alias.1, gg-config.1, gg-config-enroll.1, …
+gg man --output /usr/local/share/man/man1
+# same when pointing at the root file:
 gg man --output /usr/local/share/man/man1/gg.1
 ```

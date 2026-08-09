@@ -26,6 +26,8 @@ gg --show-path ov
 gg commits -n 10
 ```
 
+![`gg -g oss ov` — overview for a group](docs/src/images/overview-oss.png)
+
 ## Install
 
 ### Homebrew (tap)
@@ -92,6 +94,10 @@ source /path/to/git-gist/shell/gg.fish
 
 Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 
+Interactive config (wizard / TUI): see the [Interactive config](https://gg.chtnnhfoundation.org/interactive.html) chapter.
+
+![`gg config wizard` — interactive config hub](docs/src/images/config-wizard.png)
+
 ## Built-in commands
 
 | Command | Description |
@@ -101,27 +107,29 @@ Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 | `info` | Detailed status |
 | `commits -n` | Top-N commits |
 | `worktrees` | Worktree listing |
-| `doctor` | Health checks |
+| `doctor` / `doctor --config` | Health checks / config hygiene |
 | `each` | Run arbitrary shell in each repo |
 | `sync [--pull]` | Fetch (+ optional ff-only pull) |
-| `update` | Enroll repos from `[[auto_enroll]]` rules |
+| `update` | Force enroll from `[[auto_enroll]]` (also runs automatically) |
 | `stale --days N` | Repos without recent commits |
-| `alias` / `group` | Manage aliases & groups |
-| `config` | Show/get/set config |
+| `alias` / `group` / `tag` | Manage aliases, groups, tags (`wizard` / `ui` / `prune`) |
+| `config` | Show/get/set/edit; `wizard` / `ui` / `enroll` |
+| `wizard` / `ui` | Interactive config hub (prompts / full-screen TUI) |
 | `init` / `scaffold` | Scaffold from a profile |
 | `hooks` | Install hook packs |
-| `remotes` | Remote catalog |
+| `remotes` | Remote catalog (`wizard` / `ui`) |
 | `completions` | Shell completions |
-| `man` | Man page |
+| `man` | Generate man pages (root + nested subcommands) |
 | `self-update` | Update guidance / release probe |
 
 Anything else is passed through to `git` in each selected repo. Escape hatch: `gg git -- <args>`.
 
 ## Configuration
 
-- Global: `~/.config/git-gist/config.toml` (macOS: `~/Library/Application Support/git-gist/config.toml`)
+- Global: `~/.git-gist/config.toml` (legacy XDG / Application Support paths migrate automatically)
 - Local: `.gg.toml` or `.git-gist.toml` (walks up from cwd)
 - Ignore globs: config `ignore` + `.ggignore`
+- Interactive: `gg config wizard` / `gg config ui` (also `gg alias wizard`, `gg group ui`, …)
 
 ```toml
 schema_version = 1
@@ -147,7 +155,8 @@ user_name = "You"
 user_email = "you@example.com"
 
 [[auto_enroll]]
-path = "/Users/you/src/learning"
+path = "/Users/you/src"
+path_prefix = "learning/"
 depth = 6
 tags = ["learning"]
 ```
@@ -167,14 +176,13 @@ Selection notes:
 - Selection flags apply to reporting and multi-repo commands (`ov`, `list`, `sync`, `each`, passthrough, …). Catalog/config commands (`alias`, `group`, `config`, `hooks list`, …) ignore them.
 - Put global flags **before** external git verbs (`gg --dry-run status`). Misplaced globals after the verb error with a hint.
 
-## What’s new in 1.2.0
+## What’s next (unreleased on `main`)
 
-- Faster status probes and `--only-*` filters (fewer git process spawns)
-- `show_path` / `--show-path` for human tables
-- Directory prefix `--in` / `--exclude`, depth-aware under-root aliases
-- Clearer errors when globals land after a passthrough verb
+- Config lives in `~/.git-gist/`; interactive `wizard` / `ui` for aliases, groups, tags, remotes, auto-enroll
+- Automatic (throttled) auto-enroll; `gg update --prune-stale` / `gg alias prune` reclaim short names after moves
+- `path_prefix` on `[[auto_enroll]]`, selection summaries for `-g` / `--tag`, `gg doctor --config`
 
-Full notes: [CHANGELOG.md](CHANGELOG.md).
+Full notes: [CHANGELOG.md](CHANGELOG.md) (`[Unreleased]`).
 
 ## Documentation
 

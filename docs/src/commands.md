@@ -11,10 +11,14 @@ See `gg --help` and per-command `--help` for the full flag list.
 | `info [PATH]` | | Detailed status; optional path still respects `--only-*` / `--in` when those are set |
 | `commits -n N` | | Top-N commits across selection |
 | `worktrees` | | Worktree listing |
-| `doctor` | | Environment + repo health checks |
+| `doctor` | | Environment + repo health checks (`--config` for config hygiene) |
 | `stale --days N` | | Repos with no commits newer than N days |
 
 Default (no subcommand) runs `overview`.
+
+![`gg -g oss ov`](./images/overview-oss.png)
+
+![`gg -g learning list`](./images/list-learning.png)
 
 ## Multi-repo actions
 
@@ -22,15 +26,20 @@ Default (no subcommand) runs `overview`.
 |---------|---------|
 | `each <shell…>` | Run a shell command in each selected repo (`--dry-run`, `-j`, `--fail-fast`, `-q`) |
 | `sync [--pull]` | `git fetch --all --prune`; optional ff-only pull when clean and behind |
-| `update` | Enroll repos from `[[auto_enroll]]` into aliases / groups / tags |
+| `update` | Force enroll from `[[auto_enroll]]` (`--dry-run`, `--prune-stale`, `--ask`); also runs automatically |
+
+![`gg update --dry-run`](./images/update-dry-run.png)
+
+![`gg doctor --config`](./images/doctor-config.png)
 
 ## Catalog & config
 
 | Command | Purpose |
 |---------|---------|
-| `alias` / `group` | Manage path aliases and groups |
-| `config` | `show` / `path` / `get` / `set` |
-| `remotes` | Catalog + `add-to` selected repos |
+| `alias` / `group` / `tag` | Manage aliases, groups, tags (`prune`, `member`, `wizard`, `ui`) |
+| `config` | `show` / `path` / `get` / `set` / `edit` / `enroll` / `wizard` / `ui` |
+| `wizard` / `ui` | Interactive config hub ([walkthrough](./interactive.md)) |
+| `remotes` | Catalog + `add-to` + `wizard` / `ui` |
 | `hooks` | List packs / `install` into selection |
 | `init` / `scaffold` | Create a repo from a profile |
 
@@ -41,7 +50,7 @@ Selection flags do **not** apply to catalog-only subcommands (`alias list`, `con
 | Command | Purpose |
 |---------|---------|
 | `completions <shell>` | Shell completions |
-| `man [--output FILE]` | Generate man page |
+| `man [--output PATH]` | Generate man pages: root + nested subcommands (`gg.1`, `gg-alias.1`, `gg-config-enroll.1`, …). `PATH` may be a directory or a file like `…/gg.1` (siblings written beside it). Stdout without `--output` is the root page only. |
 | `version` | Print version |
 | `self-update` | Release probe / upgrade guidance |
 

@@ -4,6 +4,7 @@
 - [Install](./install.md)
 - [Quick start](./quickstart.md)
 - [Configuration](./config.md)
+- [Interactive config](./interactive.md)
 - [Commands](./commands.md)
 - [Targeting & flags](./targeting.md)
 - [Shell integration](./shell.md)

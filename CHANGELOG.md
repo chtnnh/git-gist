@@ -7,15 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Canonical config/state dir: `~/.git-gist/` (`config.toml`, `discovery.json`, `state.json`) with one-time migration from XDG / Application Support
+- Interactive config: `gg config wizard` / `gg wizard` (`inquire`) and `gg config ui` / `gg ui` (`ratatui`); scoped `wizard`/`ui` on `alias`, `group`, `tag`, `remotes`, `config enroll`
+- `gg tag` CRUD; `gg config enroll`; `gg config edit`; `gg group member add|remove`; `gg alias prune`; `gg group prune`
+- `[[auto_enroll]].path_prefix` to limit group/tag assignment under a relative prefix
+- Automatic throttled auto-enroll during selection commands; `gg update` remains a force/dry-run fallback (`--prune-stale`, `--ask`, `--no-prune-stale`)
+- `gg doctor --config` — stale aliases, unknown-key suggestions, missing watch roots, orphan group/tag members, dangerous root+groups rules
+- Selection summary on stderr when `-g` / `--tag` / `-i` / `-x` filters are active
+- Programmatic unknown-key detection via edit distance (no hardcoded misspellings); clearer `gg update` empty-rules errors (includes config path)
+- Interactive config chapter + synthetic-repo screenshots (`scripts/docs-screenshots.py`)
+- `gg man --output` writes nested subcommand pages (`gg-alias.1`, `gg-config-enroll.1`, …) beside the root page
+
 ### Changed
-- README and user guide refreshed for 1.2.0 (Homebrew upgrade / PATH shadowing, `--show-path`, directory `--in`/`--exclude`)
+- README and user guide for `~/.git-gist/` layout and interactive config UX
 
 ### Planned
-- `gg doctor --config` — warn on stale binary vs latest, empty `auto_enroll`, missing group members, duplicate basenames
 - `--cwd` / default `--root .` when no config root for “just this folder” workflows
 - `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel
-- `gg update` wizard suggestions when `auto_enroll` is empty; `gg group sync` from discovery
-- Disambiguate basename collisions in human output (relative path under root; overlaps with `--show-path`)
+- `gg group sync` from discovery
 - Quiet overview / summary-only mode for large dirty trees
 - Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases
 

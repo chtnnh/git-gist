@@ -10,6 +10,17 @@ Design pillars:
 2. **Direct passthrough** — `gg status` means `git status` everywhere selected
 3. **Reserved builtins** — overview, list, sync, update, scaffold, etc. win over passthrough
 4. **Scriptable** — JSON/NDJSON, stable exit aggregation, dry-run
+5. **Interactive config** — wizard + TUI so you rarely hand-edit TOML
+
+![Overview for group `oss`](./images/overview-oss.png)
+
+## What’s next (unreleased)
+
+- Config at `~/.git-gist/`; `gg config wizard` / `gg config ui` (+ scoped `wizard`/`ui` on alias/group/tag/remotes/enroll)
+- Automatic throttled auto-enroll; `path_prefix`; `gg alias prune` / `gg update --prune-stale`
+- `gg doctor --config`, selection summaries for `-g` / `--tag`
+
+See [Configuration](./config.md), [Interactive config](./interactive.md) (wizard / TUI + screenshots), and [Install](./install.md).
 
 ## What’s in 1.2.0
 
