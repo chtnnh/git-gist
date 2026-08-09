@@ -6,7 +6,9 @@
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::output::OutputCtx;
-use crate::{tui, wizard};
+use crate::tui;
+#[cfg(not(coverage))]
+use crate::wizard;
 use anyhow::Result;
 
 #[cfg(coverage)]

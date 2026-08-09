@@ -6,7 +6,9 @@ use crate::config::Config;
 use crate::config_ops;
 use crate::output::OutputCtx;
 use anyhow::{bail, Result};
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, IsTerminal};
+#[cfg(not(coverage))]
+use std::io::Write;
 
 pub fn run(
     cli: &Cli,

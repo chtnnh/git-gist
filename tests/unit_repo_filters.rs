@@ -4,7 +4,6 @@ use clap::Parser;
 use git_gist::cli::Cli;
 use git_gist::filters;
 use git_gist::repo::{self, ProbeOpts, Repo, RepoStatus};
-#[cfg(unix)]
 use serial_test::serial;
 use std::fs;
 use std::process::Command;
