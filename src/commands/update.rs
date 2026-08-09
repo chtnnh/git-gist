@@ -70,12 +70,14 @@ fn resolve_prune_stale(
     if stale.is_empty() {
         return Ok(false);
     }
-    let ask = ask
-        || (io::stdin().is_terminal()
-            && io::stdout().is_terminal()
-            && !cli.dry_run
-            && !out.is_json());
-    if !ask {
+    let can_prompt =
+        io::stdin().is_terminal() && io::stdout().is_terminal() && !cli.dry_run && !out.is_json();
+    // Never call inquire without a TTY — `--ask` used to force a prompt and hang
+    // CI/scripts (notably Windows) waiting on stdin forever.
+    if ask && !can_prompt {
+        bail!("--ask requires an interactive terminal; use --prune-stale or --no-prune-stale");
+    }
+    if !can_prompt {
         if cli.verbose > 0 {
             out.warn(&format!(
                 "{} stale alias(es) present — pass --prune-stale or --ask to reclaim short names",

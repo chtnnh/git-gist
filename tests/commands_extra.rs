@@ -925,14 +925,19 @@ groups = ["g"]
         .failure();
 
     f.gg().args(["update", "-v"]).assert().success();
-    f.gg().args(["update", "--ask"]).assert().success();
+    // --ask must not hang when stdin is not a TTY (Windows CI was blocking on inquire).
+    f.gg()
+        .args(["update", "--ask"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("interactive terminal"));
+    f.gg().args(["update", "--prune-stale"]).assert().success();
 
     f.gg()
         .args(["doctor", "--config"])
         .assert()
         .success()
         .stdout(predicates::str::contains("legacy").or(predicates::str::contains("path_prefix")));
-
     f.gg()
         .args(["--format", "json", "tag", "list"])
         .assert()
