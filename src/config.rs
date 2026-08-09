@@ -5,6 +5,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const CONFIG_SCHEMA_VERSION: u32 = 1;
@@ -50,6 +51,9 @@ pub struct Config {
     pub path: Option<PathBuf>,
     #[serde(skip)]
     pub local_path: Option<PathBuf>,
+    /// Warnings collected during load (not serialized)
+    #[serde(skip)]
+    pub load_warnings: Vec<String>,
 }
 
 fn default_schema() -> u32 {
@@ -94,7 +98,8 @@ pub struct RepoOverride {
 ///
 /// ```toml
 /// [[auto_enroll]]
-/// path = "/home/you/src/learning"
+/// path = "/home/you/src"
+/// path_prefix = "oss/"
 /// depth = 6
 /// tags = ["learning"]
 /// groups = []
@@ -103,6 +108,9 @@ pub struct RepoOverride {
 pub struct AutoEnroll {
     /// Directory to scan for git repositories
     pub path: PathBuf,
+    /// Only enroll repos under this relative prefix of `path` (optional)
+    #[serde(default)]
+    pub path_prefix: Option<String>,
     /// Max walk depth under `path` (default 6)
     #[serde(default = "default_enroll_depth")]
     pub depth: usize,
@@ -159,12 +167,106 @@ impl Config {
     }
 }
 
+/// Canonical global config: `~/.git-gist/config.toml`
 pub fn global_config_path() -> Result<PathBuf> {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(dirs::config_dir)
-        .context("could not resolve config directory")?;
-    Ok(base.join("git-gist").join("config.toml"))
+    let home = dirs::home_dir().context("could not resolve home directory")?;
+    Ok(home.join(".git-gist").join("config.toml"))
+}
+
+/// Runtime data directory: `~/.git-gist/`
+pub fn data_dir() -> Result<PathBuf> {
+    let home = dirs::home_dir().context("could not resolve home directory")?;
+    Ok(home.join(".git-gist"))
+}
+
+pub fn state_path() -> Result<PathBuf> {
+    Ok(data_dir()?.join("state.json"))
+}
+
+/// Legacy global config locations (pre-1.3.0).
+pub fn legacy_global_config_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
+        paths.push(xdg.join("git-gist").join("config.toml"));
+    }
+    if let Some(base) = dirs::config_dir() {
+        let p = base.join("git-gist").join("config.toml");
+        if !paths.contains(&p) {
+            paths.push(p);
+        }
+    }
+    paths
+}
+
+fn legacy_cache_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(xdg) = std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from) {
+        paths.push(xdg.join("git-gist").join("discovery.json"));
+    }
+    if let Some(base) = dirs::cache_dir() {
+        let p = base.join("git-gist").join("discovery.json");
+        if !paths.contains(&p) {
+            paths.push(p);
+        }
+    }
+    paths
+}
+
+/// Migrate legacy config into `~/.git-gist/config.toml` if needed.
+fn ensure_migrated_config() -> Result<(PathBuf, Vec<String>)> {
+    let mut warnings = Vec::new();
+    let dest = global_config_path()?;
+    if dest.is_file() {
+        return Ok((dest, warnings));
+    }
+    for legacy in legacy_global_config_paths() {
+        if !legacy.is_file() {
+            continue;
+        }
+        // Skip if legacy is a symlink that already points at dest
+        if let Ok(target) = fs::read_link(&legacy) {
+            if target == dest || canonicalize_soft(&legacy) == canonicalize_soft(&dest) {
+                continue;
+            }
+        }
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(&legacy, &dest).with_context(|| {
+            format!(
+                "migrating config from {} to {}",
+                legacy.display(),
+                dest.display()
+            )
+        })?;
+        let msg = format!(
+            "migrated config from {} → {}",
+            legacy.display(),
+            dest.display()
+        );
+        eprintln!("git-gist: {msg}");
+        warnings.push(msg);
+        return Ok((dest, warnings));
+    }
+    Ok((dest, warnings))
+}
+
+fn ensure_migrated_cache() -> Result<()> {
+    let dest = cache_path()?;
+    if dest.is_file() {
+        return Ok(());
+    }
+    for legacy in legacy_cache_paths() {
+        if !legacy.is_file() {
+            continue;
+        }
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let _ = fs::copy(&legacy, &dest);
+        break;
+    }
+    Ok(())
 }
 
 pub fn find_local_config(start: &Path) -> Option<PathBuf> {
@@ -183,6 +285,199 @@ pub fn find_local_config(start: &Path) -> Option<PathBuf> {
     None
 }
 
+/// Known top-level Config field names (serde keys). User-defined map keys under
+/// aliases/groups/tags/remotes/profiles/hook_packs/repo_overrides are not validated.
+const KNOWN_TOP_LEVEL: &[&str] = &[
+    "schema_version",
+    "root",
+    "depth",
+    "jobs",
+    "ignore",
+    "aliases",
+    "groups",
+    "tags",
+    "remotes",
+    "profiles",
+    "hook_packs",
+    "theme",
+    "include_submodules",
+    "show_path",
+    "repo_overrides",
+    "auto_enroll",
+];
+
+const KNOWN_AUTO_ENROLL_FIELDS: &[&str] = &["path", "path_prefix", "depth", "groups", "tags"];
+
+const KNOWN_PROFILE_FIELDS: &[&str] = &[
+    "user_name",
+    "user_email",
+    "default_branch",
+    "remotes",
+    "hooks",
+    "gitignore",
+    "license",
+];
+
+const KNOWN_HOOK_PACK_FIELDS: &[&str] = &["description", "hooks"];
+
+const KNOWN_REPO_OVERRIDE_FIELDS: &[&str] = &["skip", "default_args", "tags"];
+
+/// Scan raw TOML for unknown keys and suggest near-matches (edit distance).
+///
+/// Serde ignores unknown keys silently; this surfaces likely typos like
+/// `auto_enrol` → `auto_enroll` without hardcoding individual misspellings.
+pub fn scan_raw_config(text: &str) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let Ok(value) = text.parse::<toml::Value>() else {
+        return warnings;
+    };
+    let Some(table) = value.as_table() else {
+        return warnings;
+    };
+    scan_table_keys(table, KNOWN_TOP_LEVEL, None, &mut warnings);
+
+    if let Some(arr) = table.get("auto_enroll").and_then(|v| v.as_array()) {
+        for (i, item) in arr.iter().enumerate() {
+            if let Some(t) = item.as_table() {
+                scan_table_keys(
+                    t,
+                    KNOWN_AUTO_ENROLL_FIELDS,
+                    Some(&format!("auto_enroll[{i}]")),
+                    &mut warnings,
+                );
+            }
+        }
+    }
+    // Typo'd array-of-tables never land in `auto_enroll` — check any top-level
+    // array-of-tables that looked like a near-miss (already warned) for fields too.
+    for (key, val) in table {
+        if key == "auto_enroll" || !val.is_array() {
+            continue;
+        }
+        if closest_known(key, KNOWN_TOP_LEVEL).is_none() {
+            continue;
+        }
+        if let Some(arr) = val.as_array() {
+            for (i, item) in arr.iter().enumerate() {
+                if let Some(t) = item.as_table() {
+                    scan_table_keys(
+                        t,
+                        KNOWN_AUTO_ENROLL_FIELDS,
+                        Some(&format!("{key}[{i}]")),
+                        &mut warnings,
+                    );
+                }
+            }
+        }
+    }
+
+    if let Some(profiles) = table.get("profiles").and_then(|v| v.as_table()) {
+        for (name, profile) in profiles {
+            if let Some(t) = profile.as_table() {
+                scan_table_keys(
+                    t,
+                    KNOWN_PROFILE_FIELDS,
+                    Some(&format!("profiles.{name}")),
+                    &mut warnings,
+                );
+            }
+        }
+    }
+    if let Some(packs) = table.get("hook_packs").and_then(|v| v.as_table()) {
+        for (name, pack) in packs {
+            if let Some(t) = pack.as_table() {
+                scan_table_keys(
+                    t,
+                    KNOWN_HOOK_PACK_FIELDS,
+                    Some(&format!("hook_packs.{name}")),
+                    &mut warnings,
+                );
+            }
+        }
+    }
+    if let Some(ovs) = table.get("repo_overrides").and_then(|v| v.as_table()) {
+        for (name, ov) in ovs {
+            if let Some(t) = ov.as_table() {
+                scan_table_keys(
+                    t,
+                    KNOWN_REPO_OVERRIDE_FIELDS,
+                    Some(&format!("repo_overrides.{name}")),
+                    &mut warnings,
+                );
+            }
+        }
+    }
+
+    warnings
+}
+
+fn scan_table_keys(
+    table: &toml::map::Map<String, toml::Value>,
+    known: &[&str],
+    context: Option<&str>,
+    warnings: &mut Vec<String>,
+) {
+    for key in table.keys() {
+        if known.contains(&key.as_str()) {
+            continue;
+        }
+        let ctx = context.map(|c| format!("{c}.")).unwrap_or_default();
+        if let Some(suggestion) = closest_known(key, known) {
+            warnings.push(format!(
+                "unknown key `{ctx}{key}` — did you mean `{suggestion}`? \
+                 (ignored by parser)"
+            ));
+        } else {
+            warnings.push(format!("unknown key `{ctx}{key}` (ignored by parser)"));
+        }
+    }
+}
+
+/// Suggest a known key when edit distance is small relative to length.
+pub fn closest_known<'a>(input: &str, known: &[&'a str]) -> Option<&'a str> {
+    let input_l = input.to_ascii_lowercase();
+    let mut best: Option<(&'a str, usize)> = None;
+    for &cand in known {
+        let d = edit_distance(&input_l, &cand.to_ascii_lowercase());
+        let max_allowed = match cand.len().max(input.len()) {
+            0..=3 => 1,
+            4..=7 => 2,
+            _ => 3,
+        };
+        if d == 0 || d > max_allowed {
+            continue;
+        }
+        if best.map(|(_, bd)| d < bd).unwrap_or(true) {
+            best = Some((cand, d));
+        }
+    }
+    best.map(|(k, _)| k)
+}
+
+/// Classic Levenshtein distance.
+pub fn edit_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (n, m) = (a.len(), b.len());
+    if n == 0 {
+        return m;
+    }
+    if m == 0 {
+        return n;
+    }
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut cur = vec![0; m + 1];
+    for i in 1..=n {
+        cur[0] = i;
+        for j in 1..=m {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[m]
+}
+
 pub fn load(cli: &Cli) -> Result<Config> {
     let mut cfg = Config {
         schema_version: CONFIG_SCHEMA_VERSION,
@@ -191,10 +486,13 @@ pub fn load(cli: &Cli) -> Result<Config> {
     }
     .with_builtins();
 
-    let global_path = global_config_path()?;
+    let (global_path, mut warnings) = ensure_migrated_config()?;
+    let _ = ensure_migrated_cache();
+
     if global_path.is_file() {
         let text = fs::read_to_string(&global_path)
             .with_context(|| format!("reading {}", global_path.display()))?;
+        warnings.extend(scan_raw_config(&text));
         if !text.trim().is_empty() {
             let parsed: Config = toml::from_str(&text)
                 .with_context(|| format!("parsing {}", global_path.display()))?;
@@ -210,6 +508,7 @@ pub fn load(cli: &Cli) -> Result<Config> {
     if let Some(local) = find_local_config(&cwd) {
         let text =
             fs::read_to_string(&local).with_context(|| format!("reading {}", local.display()))?;
+        warnings.extend(scan_raw_config(&text));
         if !text.trim().is_empty() {
             let parsed: Config =
                 toml::from_str(&text).with_context(|| format!("parsing {}", local.display()))?;
@@ -238,6 +537,14 @@ pub fn load(cli: &Cli) -> Result<Config> {
         cfg.theme = Some(theme.clone());
     }
 
+    for w in &warnings {
+        // Always surface unknown-key / migration notices; other noise stays verbose-only.
+        if cli.verbose > 0 || w.contains("unknown key") || w.contains("migrated") {
+            let _ = writeln!(std::io::stderr(), "git-gist: warning: {w}");
+        }
+    }
+    cfg.load_warnings = warnings;
+
     Ok(cfg)
 }
 
@@ -262,8 +569,6 @@ fn merge_config(mut base: Config, overlay: Config) -> Config {
         base.root = overlay.root;
     }
     if overlay.depth != default_depth() || base.depth == default_depth() {
-        // Prefer overlay depth if present in file (we can't distinguish easily;
-        // always take overlay depth when overlay was parsed from file)
         base.depth = overlay.depth;
     }
     if overlay.jobs.is_some() {
@@ -312,14 +617,17 @@ fn merge_config(mut base: Config, overlay: Config) -> Config {
 }
 
 pub fn save_global(cfg: &Config) -> Result<PathBuf> {
-    let path = cfg.path.clone().unwrap_or(global_config_path()?);
+    let path = cfg
+        .path
+        .clone()
+        .unwrap_or_else(|| global_config_path().expect("home"));
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     let mut to_save = cfg.clone();
     to_save.path = None;
     to_save.local_path = None;
-    // Don't persist builtin packs if user hasn't customized — still fine to persist
+    to_save.load_warnings.clear();
     let text = toml::to_string_pretty(&to_save)?;
     fs::write(&path, text)?;
     Ok(path)
@@ -362,9 +670,59 @@ pub fn set_dot_key(cfg: &mut Config, key: &str, value: &str) -> Result<()> {
 }
 
 pub fn cache_path() -> Result<PathBuf> {
-    let base = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(dirs::cache_dir)
-        .context("could not resolve cache directory")?;
-    Ok(base.join("git-gist").join("discovery.json"))
+    Ok(data_dir()?.join("discovery.json"))
+}
+
+fn canonicalize_soft(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scan_detects_auto_enrol_via_edit_distance() {
+        let w = scan_raw_config("[[auto_enrol]]\npath = \"/tmp\"\n");
+        assert!(
+            w.iter()
+                .any(|s| s.contains("auto_enrol") && s.contains("auto_enroll")),
+            "{w:?}"
+        );
+    }
+
+    #[test]
+    fn scan_detects_show_pth_and_nested_field_typo() {
+        let w = scan_raw_config(
+            r#"
+show_pth = true
+[[auto_enroll]]
+path = "/tmp"
+path_prefx = "oss/"
+"#,
+        );
+        assert!(w
+            .iter()
+            .any(|s| s.contains("show_pth") && s.contains("show_path")));
+        assert!(w
+            .iter()
+            .any(|s| s.contains("path_prefx") && s.contains("path_prefix")));
+    }
+
+    #[test]
+    fn scan_ok_for_correct_key() {
+        let w = scan_raw_config("[[auto_enroll]]\npath = \"/tmp\"\npath_prefix = \"x\"\n");
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn edit_distance_basics() {
+        assert_eq!(edit_distance("kitten", "sitting"), 3);
+        assert_eq!(edit_distance("auto_enrol", "auto_enroll"), 1);
+        assert_eq!(
+            closest_known("auto_enrol", KNOWN_TOP_LEVEL),
+            Some("auto_enroll")
+        );
+        assert_eq!(closest_known("zzzzzz", KNOWN_TOP_LEVEL), None);
+    }
 }

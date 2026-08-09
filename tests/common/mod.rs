@@ -56,7 +56,7 @@ impl Fixture {
     }
 
     pub fn config_dir(&self) -> PathBuf {
-        self.home.path().join("config").join("git-gist")
+        self.home.path().join(".git-gist")
     }
 
     pub fn write_global_config(&self, body: &str) {

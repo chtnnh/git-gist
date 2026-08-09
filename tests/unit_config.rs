@@ -47,7 +47,7 @@ fn get_set_dot_keys() {
 fn load_merges_global_and_local() {
     let home = tempdir().unwrap();
     let root = tempdir().unwrap();
-    let cfg_dir = home.path().join("config").join("git-gist");
+    let cfg_dir = home.path().join(".git-gist");
     fs::create_dir_all(&cfg_dir).unwrap();
     fs::write(
         cfg_dir.join("config.toml"),
@@ -60,7 +60,6 @@ fn load_merges_global_and_local() {
     )
     .unwrap();
 
-    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("HOME", home.path());
     let prev = std::env::current_dir().unwrap();
     std::env::set_current_dir(root.path()).unwrap();
@@ -77,7 +76,6 @@ fn load_merges_global_and_local() {
 #[serial]
 fn save_global_roundtrip() {
     let home = tempdir().unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("HOME", home.path());
 
     let mut cfg = Config::default().with_builtins();
@@ -88,19 +86,39 @@ fn save_global_roundtrip() {
     assert!(path.is_file());
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("depth = 5"));
+    assert!(
+        path.ends_with(".git-gist/config.toml") || path.to_string_lossy().contains(".git-gist")
+    );
 }
 
 #[test]
 #[serial]
 fn empty_config_file_is_ok() {
     let home = tempdir().unwrap();
-    let cfg_dir = home.path().join("config").join("git-gist");
+    let cfg_dir = home.path().join(".git-gist");
     fs::create_dir_all(&cfg_dir).unwrap();
     fs::write(cfg_dir.join("config.toml"), "   \n").unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("HOME", home.path());
     let cfg = config::load(&empty_cli()).unwrap();
     assert_eq!(cfg.schema_version, CONFIG_SCHEMA_VERSION);
+}
+
+#[test]
+#[serial]
+fn migrates_legacy_xdg_config() {
+    let home = tempdir().unwrap();
+    let legacy = home.path().join("config").join("git-gist");
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(
+        legacy.join("config.toml"),
+        "schema_version = 1\ndepth = 4\n",
+    )
+    .unwrap();
+    std::env::set_var("HOME", home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    let cfg = config::load(&empty_cli()).unwrap();
+    assert_eq!(cfg.depth, 4);
+    assert!(home.path().join(".git-gist").join("config.toml").is_file());
 }
 
 #[test]
@@ -111,4 +129,10 @@ fn find_local_config_walks_up() {
     fs::write(root.path().join(".git-gist.toml"), "depth = 1\n").unwrap();
     let found = config::find_local_config(&nested).unwrap();
     assert!(found.ends_with(".git-gist.toml"));
+}
+
+#[test]
+fn scan_raw_detects_typo() {
+    let w = config::scan_raw_config("[[auto_enrol]]\npath=\"/x\"\n");
+    assert!(w.iter().any(|s| s.contains("did you mean")));
 }
