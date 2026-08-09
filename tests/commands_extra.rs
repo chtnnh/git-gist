@@ -530,3 +530,443 @@ depth = 2
         .success()
         .stdout(predicates::str::contains("solo"));
 }
+
+#[test]
+fn alias_prune_reclaims_short_names_on_update() {
+    let mut f = Fixture::new();
+    let watch = f.root.path().join("moved");
+    let repo = watch.join("widget");
+    fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-b", "main"]);
+    fs::write(repo.join("README"), "x\n").unwrap();
+    git(&repo, &["add", "README"]);
+    git(&repo, &["commit", "-m", "init"]);
+    f.repos.push(repo.clone());
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[aliases]
+widget = "{missing}"
+
+[[auto_enroll]]
+path = "{watch}"
+depth = 2
+"#,
+        missing = Fixture::toml_path(&f.root.path().join("gone").join("widget")),
+        watch = Fixture::toml_path(&watch),
+    ));
+
+    f.gg()
+        .args(["alias", "prune", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("widget"));
+
+    f.gg()
+        .args(["update", "--prune-stale"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("added").or(predicates::str::contains("pruned")));
+
+    f.gg()
+        .args(["alias", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("widget"))
+        .stdout(predicates::str::contains(repo.to_str().unwrap()));
+}
+
+#[test]
+fn auto_enroll_path_prefix_limits_group() {
+    let mut f = Fixture::new();
+    let watch = f.root.path();
+    for name in ["oss/a", "learning/b"] {
+        let repo = watch.join(name);
+        fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-b", "main"]);
+        fs::write(repo.join("README"), "x\n").unwrap();
+        git(&repo, &["add", "README"]);
+        git(&repo, &["commit", "-m", "init"]);
+        f.repos.push(repo);
+    }
+
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[[auto_enroll]]
+path = "{watch}"
+path_prefix = "oss"
+depth = 4
+groups = ["oss"]
+"#,
+        watch = Fixture::toml_path(watch),
+    ));
+
+    f.gg().args(["update"]).assert().success();
+    f.gg()
+        .args(["group", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("a"))
+        .stdout(predicates::str::contains("oss"));
+
+    let out = f.gg().args(["alias", "list"]).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("a"));
+    // learning/b should get an alias only if a rule covers it — this rule shouldn't
+    assert!(!text.lines().any(|l| l.starts_with("b\t")));
+}
+
+#[test]
+fn doctor_config_and_tag_enroll_cli() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+[aliases]
+gone = "/no/such/path"
+[groups]
+g = ["gone", "missing-alias"]
+"#,
+    );
+    f.gg()
+        .args(["doctor", "--config"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("stale"))
+        .stdout(predicates::str::contains(".git-gist"));
+
+    f.gg()
+        .args([
+            "config",
+            "enroll",
+            "add",
+            f.root.path().to_str().unwrap(),
+            "--depth",
+            "2",
+            "--to-group",
+            "g",
+        ])
+        .assert()
+        .success();
+    f.gg()
+        .args(["config", "enroll", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("0\t"));
+
+    f.gg().args(["tag", "add", "t", "gone"]).assert().success();
+    f.gg()
+        .args(["tag", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("t"));
+    f.gg()
+        .args(["tag", "member", "add", "t", "gone"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["tag", "member", "remove", "t", "gone"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["group", "add", "g2", "gone"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["group", "member", "add", "g2", "gone"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["group", "member", "remove", "g2", "gone"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["group", "prune", "g", "--dry-run"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["config", "enroll", "remove", "0"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn unknown_config_keys_surface_suggestions() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+show_pth = true
+[[auto_enrol]]
+path = "/tmp"
+"#,
+    );
+    f.gg()
+        .args(["doctor", "--config"])
+        .assert()
+        .success()
+        .stdout(
+            predicates::str::contains("did you mean").or(predicates::str::contains("unknown key")),
+        );
+    f.gg()
+        .args(["update"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("auto_enroll"));
+}
+
+#[test]
+fn doctor_config_warns_on_dangerous_and_orphan_rules() {
+    let f = Fixture::with_repos(&["dup-a"]);
+    let root = Fixture::toml_path(f.root.path());
+    let dup = f.root.path().join("also").join("dup-a");
+    fs::create_dir_all(&dup).unwrap();
+    git(&dup, &["init", "-b", "main"]);
+    fs::write(dup.join("README"), "x\n").unwrap();
+    git(&dup, &["add", "README"]);
+    git(&dup, &["commit", "-m", "c"]);
+    let p1 = Fixture::toml_path(&f.repos[0]);
+    let p2 = Fixture::toml_path(&dup);
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+root = "{root}"
+[aliases]
+a = "{p1}"
+b = "{p2}"
+[groups]
+g = ["a", "missing"]
+[tags]
+t = ["ghost"]
+[[auto_enroll]]
+path = "{root}"
+depth = 3
+groups = ["g"]
+[[auto_enroll]]
+path = "{root}/nope"
+depth = 2
+tags = ["t"]
+"#,
+    ));
+    f.gg()
+        .args(["doctor", "--config"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("path_prefix").or(predicates::str::contains("equals")))
+        .stdout(predicates::str::contains("missing").or(predicates::str::contains("ghost")))
+        .stdout(
+            predicates::str::contains("duplicate basename").or(predicates::str::contains("dup-a")),
+        );
+}
+
+#[test]
+fn catalog_dry_runs_and_mutations() {
+    let f = Fixture::with_repos(&["r1"]);
+    let path = Fixture::toml_path(&f.repos[0]);
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+[aliases]
+r1 = "{path}"
+gone = "/no/such/path"
+[groups]
+g = ["r1", "gone"]
+[tags]
+t = ["r1"]
+[remotes]
+up = "git@example.com:org/"
+"#,
+    ));
+
+    f.gg()
+        .args(["--dry-run", "alias", "remove", "gone"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("dry-run"));
+    f.gg()
+        .args(["alias", "prune"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("pruned").or(predicates::str::contains("gone")));
+    f.gg()
+        .args(["alias", "prune"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no stale"));
+
+    f.gg()
+        .args(["--dry-run", "tag", "add", "t2", "r1"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("dry-run"));
+    f.gg().args(["tag", "add", "t2", "r1"]).assert().success();
+    f.gg()
+        .args(["--dry-run", "tag", "member", "add", "t2", "r1"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "tag", "member", "remove", "t2", "r1"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "tag", "remove", "t2"])
+        .assert()
+        .success();
+    f.gg().args(["tag", "remove", "t2"]).assert().success();
+
+    f.gg()
+        .args(["--dry-run", "group", "remove", "g"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "group", "member", "add", "g", "r1"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "group", "member", "remove", "g", "r1"])
+        .assert()
+        .success();
+    f.gg().args(["group", "prune", "g"]).assert().success();
+
+    f.gg()
+        .args(["--dry-run", "remotes", "add", "x", "git@x/"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "remotes", "remove", "up"])
+        .assert()
+        .success();
+
+    f.gg()
+        .args(["--format", "json", "config", "enroll", "list"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["config", "enroll", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no [[auto_enroll]]"));
+
+    f.gg()
+        .args([
+            "--dry-run",
+            "config",
+            "enroll",
+            "add",
+            f.root.path().to_str().unwrap(),
+            "--to-group",
+            "g",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("dry-run"));
+    f.gg()
+        .args([
+            "config",
+            "enroll",
+            "add",
+            f.root.path().to_str().unwrap(),
+            "--path-prefix",
+            "oss/",
+            "--to-tag",
+            "t",
+        ])
+        .assert()
+        .success();
+    f.gg()
+        .args(["--dry-run", "config", "enroll", "remove", "0"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["update", "--no-prune-stale", "-v"])
+        .assert()
+        .success();
+    f.gg()
+        .args(["update", "--prune-stale", "--dry-run"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_edit_update_ask_and_catalog_edges() {
+    let f = Fixture::with_repos(&["edge"]);
+    let path = Fixture::toml_path(&f.repos[0]);
+    let root = Fixture::toml_path(f.root.path());
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+root = "{root}"
+[aliases]
+edge = "{path}"
+gone = "/missing/path"
+[[auto_enroll]]
+path = "{root}"
+depth = 3
+groups = ["g"]
+"#,
+    ));
+    // Legacy XDG config still present → doctor --config info
+    let legacy_dir = f.home.path().join("config").join("git-gist");
+    fs::create_dir_all(&legacy_dir).unwrap();
+    fs::write(legacy_dir.join("config.toml"), "schema_version = 1\n").unwrap();
+
+    f.gg()
+        .env("EDITOR", "true")
+        .args(["config", "edit"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("edited"));
+    f.gg()
+        .env("EDITOR", "false")
+        .args(["config", "edit"])
+        .assert()
+        .failure();
+
+    f.gg().args(["update", "-v"]).assert().success();
+    f.gg().args(["update", "--ask"]).assert().success();
+
+    f.gg()
+        .args(["doctor", "--config"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("legacy").or(predicates::str::contains("path_prefix")));
+
+    f.gg()
+        .args(["--format", "json", "tag", "list"])
+        .assert()
+        .success();
+    f.write_global_config("schema_version = 1\n");
+    f.gg()
+        .args(["tag", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no tags"));
+}
+
+#[cfg(coverage)]
+#[test]
+fn interactive_entrypoints_under_coverage() {
+    let f = Fixture::new();
+    f.write_global_config("schema_version = 1\n");
+    for args in [
+        &["wizard"][..],
+        &["ui"],
+        &["config"],
+        &["config", "wizard"],
+        &["config", "ui"],
+        &["alias", "wizard"],
+        &["alias", "ui"],
+        &["group", "wizard"],
+        &["group", "ui"],
+        &["tag", "wizard"],
+        &["tag", "ui"],
+        &["remotes", "wizard"],
+        &["remotes", "ui"],
+        &["config", "enroll", "wizard"],
+        &["config", "enroll", "ui"],
+    ] {
+        f.gg().args(args.iter().copied()).assert().success();
+    }
+}

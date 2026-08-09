@@ -97,9 +97,10 @@ fn discover_ggignore_and_cache_roundtrip() {
     let prev = std::env::current_dir().unwrap();
     std::env::set_current_dir(root.path()).unwrap();
     let cli = Cli::try_parse_from(["gg", "list"]).unwrap();
-    let _ = discover::select_repos(&cli, &cfg).unwrap();
+    let mut cfg = cfg;
+    let _ = discover::select_repos(&cli, &mut cfg).unwrap();
     // second call should hit cache
-    let _ = discover::select_repos(&cli, &cfg).unwrap();
+    let _ = discover::select_repos(&cli, &mut cfg).unwrap();
     std::env::set_current_dir(prev).unwrap();
 }
 
@@ -126,6 +127,12 @@ fn config_set_root_and_include_submodules() {
     );
     let _ = config::get_dot_key(&cfg, "jobs").unwrap();
     let _ = config::get_dot_key(&cfg, "root").unwrap();
+}
+
+#[test]
+fn clap_command_builds() {
+    let cmd = git_gist::clap_command();
+    assert_eq!(cmd.get_name(), "gg");
 }
 
 #[test]

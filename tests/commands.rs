@@ -301,6 +301,19 @@ fn man_stdout_and_file() {
         .assert()
         .success();
     assert!(out.is_file());
+    // Nested subcommand pages land beside the root page.
+    assert!(f.root.path().join("gg-alias.1").is_file());
+    assert!(f.root.path().join("gg-config.1").is_file());
+    assert!(f.root.path().join("gg-config-enroll.1").is_file());
+    assert!(f.root.path().join("gg-alias-add.1").is_file());
+
+    let dir = f.root.path().join("man1");
+    f.gg()
+        .args(["man", "--output", dir.to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(dir.join("gg.1").is_file());
+    assert!(dir.join("gg-update.1").is_file());
 }
 
 #[test]
