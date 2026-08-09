@@ -74,6 +74,20 @@ impl Fixture {
         path.display().to_string().replace('\\', "\\\\")
     }
 
+    /// Stable substring for asserting paths in command output.
+    ///
+    /// On Windows, temp dirs may appear as short (`RUNNER~1`) paths in the
+    /// fixture while `canonicalize` / gg output uses `\\?\C:\Users\...`.
+    /// Matching the last two components avoids that mismatch.
+    pub fn path_output_needle(path: &Path) -> String {
+        let components: Vec<_> = path
+            .components()
+            .filter_map(|c| c.as_os_str().to_str())
+            .collect();
+        let n = components.len().min(2);
+        components[components.len() - n..].join(std::path::MAIN_SEPARATOR_STR)
+    }
+
     pub fn write_local_config(&self, body: &str) {
         fs::write(self.root.path().join(".gg.toml"), body).unwrap();
     }

@@ -574,7 +574,9 @@ depth = 2
         .assert()
         .success()
         .stdout(predicates::str::contains("widget"))
-        .stdout(predicates::str::contains(repo.to_str().unwrap()));
+        .stdout(predicates::str::contains(Fixture::path_output_needle(
+            &repo,
+        )));
 }
 
 #[test]
