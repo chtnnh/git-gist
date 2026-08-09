@@ -1,5 +1,6 @@
 use crate::cli::{Cli, RemotesAction};
-use crate::config::{self, Config};
+use crate::config::Config;
+use crate::config_ops;
 use crate::output::OutputCtx;
 use crate::repo::Repo;
 use anyhow::{bail, Context, Result};
@@ -23,6 +24,7 @@ pub fn run(
                     writeln!(out.stdout(), "{name}\t{url}")?;
                 }
             }
+            Ok(())
         }
         RemotesAction::Add { name, url } => {
             if cli.dry_run {
@@ -30,12 +32,13 @@ pub fn run(
                 return Ok(());
             }
             let mut updated = cfg.clone();
-            updated.remotes.insert(name.clone(), url.clone());
-            let saved = config::save_global(&updated)?;
+            config_ops::add_remote(&mut updated, name, url);
+            let saved = config_ops::save(&updated)?;
             out.success(&format!(
                 "added remote {name} → {url} ({})",
                 saved.display()
             ))?;
+            Ok(())
         }
         RemotesAction::Remove { name } => {
             if cli.dry_run {
@@ -43,11 +46,10 @@ pub fn run(
                 return Ok(());
             }
             let mut updated = cfg.clone();
-            if updated.remotes.remove(name).is_none() {
-                bail!("remote not found: {name}");
-            }
-            let saved = config::save_global(&updated)?;
+            config_ops::remove_remote(&mut updated, name)?;
+            let saved = config_ops::save(&updated)?;
             out.success(&format!("removed remote {name} ({})", saved.display()))?;
+            Ok(())
         }
         RemotesAction::AddTo { name, as_name } => {
             let url = cfg
@@ -74,7 +76,6 @@ pub fn run(
                 if status.success() {
                     out.success(&format!("{}: added remote {remote_name}", repo.name))?;
                 } else {
-                    // try set-url if exists
                     let status = crate::repo::git_command()
                         .args(["remote", "set-url", remote_name, &url])
                         .current_dir(&repo.path)
@@ -89,7 +90,11 @@ pub fn run(
                     }
                 }
             }
+            Ok(())
+        }
+        RemotesAction::Wizard => crate::interactive::remotes(cli, cfg, out),
+        RemotesAction::Ui => {
+            crate::interactive::ui_focused(cli, cfg, out, crate::tui::Area::Remotes)
         }
     }
-    Ok(())
 }

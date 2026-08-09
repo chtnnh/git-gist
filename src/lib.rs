@@ -1,13 +1,18 @@
 //! git-gist library — multi-repo git CLI core.
 
+pub mod auto_enroll;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod config_ops;
 pub mod discover;
 pub mod exec;
 pub mod filters;
+pub mod interactive;
 pub mod output;
 pub mod repo;
+pub mod tui;
+pub mod wizard;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
@@ -39,7 +44,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         _ => {}
     }
 
-    let cfg = config::load(&cli)?;
+    let mut cfg = config::load(&cli)?;
     if let Some(theme) = cfg.theme.as_deref().or(cli.theme.as_deref()) {
         out = out.with_theme(Theme::parse(theme));
     }
@@ -51,7 +56,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         return run_without_selection(&cli, &cfg, &mut out);
     }
 
-    let selection = discover::select_repos(&cli, &cfg)?;
+    let selection = discover::select_repos(&cli, &mut cfg)?;
 
     match &cli.command {
         Some(Commands::Overview) => commands::overview::run(&selection, &cli, &cfg, &mut out),
@@ -65,7 +70,13 @@ pub fn run_cli(cli: Cli) -> Result<()> {
             commands::commits::run(&selection, *number, &cli, &cfg, &mut out)
         }
         Some(Commands::Worktrees) => commands::worktrees::run(&selection, &cli, &cfg, &mut out),
-        Some(Commands::Doctor) => commands::doctor::run(&selection, &cli, &cfg, &mut out),
+        Some(Commands::Doctor { config }) => {
+            if *config {
+                commands::doctor::run_config(&cfg, &mut out)
+            } else {
+                commands::doctor::run(&selection, &cli, &cfg, &mut out)
+            }
+        }
         Some(Commands::Each { command }) => {
             commands::each::run(&selection, command, &cli, &cfg, &mut out)
         }
@@ -86,13 +97,16 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         }
         None => commands::overview::run(&selection, &cli, &cfg, &mut out),
         Some(
-            Commands::Update
+            Commands::Update { .. }
             | Commands::Config { .. }
             | Commands::Alias { .. }
             | Commands::Group { .. }
+            | Commands::Tag { .. }
             | Commands::Init { .. }
             | Commands::Scaffold { .. }
             | Commands::SelfUpdate
+            | Commands::Wizard
+            | Commands::Ui
             | Commands::Completions { .. }
             | Commands::Man { .. }
             | Commands::Version,
@@ -109,7 +123,7 @@ fn command_needs_selection(command: &Option<Commands>) -> bool {
             | Commands::Info { .. }
             | Commands::Commits { .. }
             | Commands::Worktrees
-            | Commands::Doctor
+            | Commands::Doctor { config: false }
             | Commands::Each { .. }
             | Commands::Sync { .. }
             | Commands::Stale { .. }
@@ -128,10 +142,20 @@ fn command_needs_selection(command: &Option<Commands>) -> bool {
 
 fn run_without_selection(cli: &Cli, cfg: &config::Config, out: &mut OutputCtx) -> Result<()> {
     match &cli.command {
-        Some(Commands::Update) => commands::update::run(cli, cfg, out),
-        Some(Commands::Config { action }) => commands::config_cmd::run(action, cli, cfg, out),
+        Some(Commands::Update {
+            prune_stale,
+            no_prune_stale,
+            ask,
+        }) => commands::update::run(cli, cfg, out, *prune_stale, *no_prune_stale, *ask),
+        Some(Commands::Config { action: None }) => interactive::hub(cli, cfg, out),
+        Some(Commands::Config {
+            action: Some(action),
+        }) => commands::config_cmd::run(action, cli, cfg, out),
         Some(Commands::Alias { action }) => commands::alias::run(action, cli, cfg, out),
         Some(Commands::Group { action }) => commands::group::run(action, cli, cfg, out),
+        Some(Commands::Tag { action }) => commands::tag::run(action, cli, cfg, out),
+        Some(Commands::Wizard) => interactive::hub(cli, cfg, out),
+        Some(Commands::Ui) => interactive::ui_hub(cli, cfg, out),
         Some(Commands::Init { profile, path }) => {
             commands::scaffold::init(profile.as_deref(), path.as_deref(), cli, cfg, out)
         }
@@ -141,6 +165,7 @@ fn run_without_selection(cli: &Cli, cfg: &config::Config, out: &mut OutputCtx) -
         Some(Commands::SelfUpdate) => commands::self_update::run(out),
         Some(Commands::Hooks { action }) => commands::hooks::run(action, &[], cli, cfg, out),
         Some(Commands::Remotes { action }) => commands::remotes::run(action, &[], cli, cfg, out),
+        Some(Commands::Doctor { config: true }) => commands::doctor::run_config(cfg, out),
         _ => unreachable!("command_needs_selection should be false only for the arms above"),
     }
 }

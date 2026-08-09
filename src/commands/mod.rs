@@ -15,5 +15,6 @@ pub mod scaffold;
 pub mod self_update;
 pub mod stale;
 pub mod sync;
+pub mod tag;
 pub mod update;
 pub mod worktrees;

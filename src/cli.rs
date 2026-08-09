@@ -97,7 +97,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub include_submodules: bool,
 
-    /// Refresh discovery cache
+    /// Refresh discovery cache (also forces auto-enroll scan)
     #[arg(long, global = true)]
     pub refresh: bool,
 
@@ -162,7 +162,11 @@ pub enum Commands {
     Worktrees,
 
     /// Health checks for selection / environment
-    Doctor,
+    Doctor {
+        /// Check global config (stale aliases, auto_enroll, groups)
+        #[arg(long)]
+        config: bool,
+    },
 
     /// Run an arbitrary shell command in each repo
     Each {
@@ -173,7 +177,7 @@ pub enum Commands {
     /// Get or set configuration
     Config {
         #[command(subcommand)]
-        action: ConfigAction,
+        action: Option<ConfigAction>,
     },
 
     /// Manage path aliases
@@ -186,6 +190,12 @@ pub enum Commands {
     Group {
         #[command(subcommand)]
         action: GroupAction,
+    },
+
+    /// Manage tags of aliases
+    Tag {
+        #[command(subcommand)]
+        action: TagAction,
     },
 
     /// Scaffold a new git repo from a profile
@@ -230,7 +240,23 @@ pub enum Commands {
     },
 
     /// Enroll new repos from [[auto_enroll]] rules into aliases/groups/tags
-    Update,
+    Update {
+        /// Remove stale aliases before enrolling (reclaim short names)
+        #[arg(long)]
+        prune_stale: bool,
+        /// Never prune stale aliases
+        #[arg(long)]
+        no_prune_stale: bool,
+        /// Interactively confirm pruning stale aliases
+        #[arg(long)]
+        ask: bool,
+    },
+
+    /// Interactive config wizard (hub)
+    Wizard,
+
+    /// Full-screen config TUI (hub)
+    Ui,
 
     /// Explicit git passthrough (escape hatch for name collisions)
     Git {
@@ -244,9 +270,11 @@ pub enum Commands {
         shell: clap_complete::Shell,
     },
 
-    /// Generate man page
+    /// Generate man pages (root + nested subcommands)
     Man {
-        #[arg(long, value_name = "FILE")]
+        /// Write pages under DIR, or beside FILE (e.g. `man1/gg.1` also writes `man1/gg-alias.1`, …).
+        /// Without this flag, only the root page is printed to stdout.
+        #[arg(long, value_name = "PATH")]
         output: Option<PathBuf>,
     },
 
@@ -275,13 +303,55 @@ pub enum ConfigAction {
     Set { key: String, value: String },
     /// Get a simple key
     Get { key: String },
+    /// Open config in $EDITOR
+    Edit,
+    /// Interactive wizard (hub)
+    Wizard,
+    /// Full-screen TUI (hub)
+    Ui,
+    /// Manage [[auto_enroll]] rules
+    Enroll {
+        #[command(subcommand)]
+        action: EnrollAction,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum EnrollAction {
+    List,
+    Add {
+        path: PathBuf,
+        #[arg(long)]
+        depth: Option<usize>,
+        #[arg(long)]
+        path_prefix: Option<String>,
+        #[arg(long = "to-group", action = clap::ArgAction::Append)]
+        groups: Vec<String>,
+        #[arg(long = "to-tag", action = clap::ArgAction::Append)]
+        tags: Vec<String>,
+    },
+    Remove {
+        /// Zero-based index from `gg config enroll list`
+        index: usize,
+    },
+    Wizard,
+    Ui,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum AliasAction {
     List,
-    Add { name: String, path: PathBuf },
-    Remove { name: String },
+    Add {
+        name: String,
+        path: PathBuf,
+    },
+    Remove {
+        name: String,
+    },
+    /// Remove aliases whose paths no longer exist
+    Prune,
+    Wizard,
+    Ui,
 }
 
 #[derive(Debug, Subcommand)]
@@ -294,6 +364,67 @@ pub enum GroupAction {
     },
     Remove {
         name: String,
+    },
+    /// Add/remove individual members
+    Member {
+        #[command(subcommand)]
+        action: GroupMemberAction,
+    },
+    /// Remove stale / out-of-prefix members
+    Prune {
+        name: String,
+        /// Keep only members under this directory
+        #[arg(long)]
+        under: Option<PathBuf>,
+    },
+    Wizard,
+    Ui,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum GroupMemberAction {
+    Add {
+        group: String,
+        #[arg(required = true, num_args = 1..)]
+        members: Vec<String>,
+    },
+    Remove {
+        group: String,
+        #[arg(required = true, num_args = 1..)]
+        members: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TagAction {
+    List,
+    Add {
+        name: String,
+        #[arg(required = true, num_args = 1..)]
+        members: Vec<String>,
+    },
+    Remove {
+        name: String,
+    },
+    Member {
+        #[command(subcommand)]
+        action: TagMemberAction,
+    },
+    Wizard,
+    Ui,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TagMemberAction {
+    Add {
+        tag: String,
+        #[arg(required = true, num_args = 1..)]
+        members: Vec<String>,
+    },
+    Remove {
+        tag: String,
+        #[arg(required = true, num_args = 1..)]
+        members: Vec<String>,
     },
 }
 
@@ -323,4 +454,6 @@ pub enum RemotesAction {
         #[arg(long)]
         as_name: Option<String>,
     },
+    Wizard,
+    Ui,
 }
