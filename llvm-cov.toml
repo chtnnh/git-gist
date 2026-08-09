@@ -1,6 +1,4 @@
+# Documented threshold; enforcement lives in scripts/coverage.sh and CI.
+# Interactive shells (`tui/`, `wizard/`) and `main.rs` are excluded via
+# --ignore-filename-regex (cargo-llvm-cov does not read this file for excludes).
 fail_under_lines = 95
-
-# Exclude the thin binary entrypoint from the denominator
-exclude_files = [
-  "src/main.rs",
-]

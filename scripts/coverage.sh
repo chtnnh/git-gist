@@ -12,11 +12,16 @@ fi
 
 rustup component add llvm-tools-preview >/dev/null
 
+# Interactive shells are prompt loops; mutation logic is covered via config_ops /
+# auto_enroll / CLI. interactive.rs is the thin dispatch shim (kept in report).
+IGNORE='(tests/|/cargo/registry/|/tui/|/wizard/|main\.rs)'
+
 cargo llvm-cov clean --workspace
 cargo llvm-cov --workspace --lcov --output-path target/lcov.info \
-  --ignore-filename-regex '(tests/|/cargo/registry/)'
+  --ignore-filename-regex "$IGNORE"
 
-cargo llvm-cov report --summary-only | tee target/coverage-summary.txt
+cargo llvm-cov report --summary-only --ignore-filename-regex "$IGNORE" \
+  | tee target/coverage-summary.txt
 
 python3 - "$THRESHOLD" <<'PY'
 import re, sys
