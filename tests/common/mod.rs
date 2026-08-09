@@ -49,7 +49,11 @@ impl Fixture {
         let mut cmd = assert_cmd::Command::cargo_bin("gg").unwrap();
         cmd.env("XDG_CONFIG_HOME", self.home.path().join("config"));
         cmd.env("XDG_CACHE_HOME", self.home.path().join("cache"));
+        // Windows `dirs::home_dir` ignores HOME; production code prefers these
+        // env vars so fixtures can redirect `~/.git-gist/` on all platforms.
+        cmd.env("GIT_GIST_HOME", self.home.path());
         cmd.env("HOME", self.home.path());
+        cmd.env("USERPROFILE", self.home.path());
         cmd.env("NO_COLOR", "1");
         cmd.current_dir(self.root.path());
         cmd

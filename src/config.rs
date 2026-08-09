@@ -167,16 +167,30 @@ impl Config {
     }
 }
 
+/// Resolve the user home used for `~/.git-gist/`.
+///
+/// `dirs::home_dir()` on Windows uses the Known Folder API and ignores `HOME`,
+/// which breaks test fixtures that redirect the home directory. Prefer explicit
+/// `GIT_GIST_HOME`, then `HOME` / `USERPROFILE`, then `dirs::home_dir()`.
+pub fn home_dir() -> Result<PathBuf> {
+    for key in ["GIT_GIST_HOME", "HOME", "USERPROFILE"] {
+        if let Some(raw) = std::env::var_os(key) {
+            if !raw.is_empty() {
+                return Ok(PathBuf::from(raw));
+            }
+        }
+    }
+    dirs::home_dir().context("could not resolve home directory")
+}
+
 /// Canonical global config: `~/.git-gist/config.toml`
 pub fn global_config_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("could not resolve home directory")?;
-    Ok(home.join(".git-gist").join("config.toml"))
+    Ok(home_dir()?.join(".git-gist").join("config.toml"))
 }
 
 /// Runtime data directory: `~/.git-gist/`
 pub fn data_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("could not resolve home directory")?;
-    Ok(home.join(".git-gist"))
+    Ok(home_dir()?.join(".git-gist"))
 }
 
 pub fn state_path() -> Result<PathBuf> {

@@ -42,6 +42,23 @@ fn get_set_dot_keys() {
     assert!(config::get_dot_key(&cfg, "nope").is_err());
 }
 
+fn set_test_home(home: &std::path::Path) {
+    std::env::set_var("GIT_GIST_HOME", home);
+    std::env::set_var("HOME", home);
+    std::env::set_var("USERPROFILE", home);
+}
+
+#[test]
+#[serial]
+fn home_dir_prefers_git_gist_home_env() {
+    let home = tempdir().unwrap();
+    let other = tempdir().unwrap();
+    std::env::set_var("HOME", other.path());
+    std::env::set_var("USERPROFILE", other.path());
+    std::env::set_var("GIT_GIST_HOME", home.path());
+    assert_eq!(config::home_dir().unwrap(), home.path());
+}
+
 #[test]
 #[serial]
 fn load_merges_global_and_local() {
@@ -60,7 +77,7 @@ fn load_merges_global_and_local() {
     )
     .unwrap();
 
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
     let prev = std::env::current_dir().unwrap();
     std::env::set_current_dir(root.path()).unwrap();
 
@@ -76,7 +93,7 @@ fn load_merges_global_and_local() {
 #[serial]
 fn save_global_roundtrip() {
     let home = tempdir().unwrap();
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
 
     let mut cfg = Config::default().with_builtins();
     cfg.path = Some(config::global_config_path().unwrap());
@@ -98,7 +115,7 @@ fn empty_config_file_is_ok() {
     let cfg_dir = home.path().join(".git-gist");
     fs::create_dir_all(&cfg_dir).unwrap();
     fs::write(cfg_dir.join("config.toml"), "   \n").unwrap();
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
     let cfg = config::load(&empty_cli()).unwrap();
     assert_eq!(cfg.schema_version, CONFIG_SCHEMA_VERSION);
 }
@@ -114,7 +131,7 @@ fn migrates_legacy_xdg_config() {
         "schema_version = 1\ndepth = 4\n",
     )
     .unwrap();
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
     std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     let cfg = config::load(&empty_cli()).unwrap();
     assert_eq!(cfg.depth, 4);
