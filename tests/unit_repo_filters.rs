@@ -108,6 +108,7 @@ fn repo_label_falls_back_to_absolute_when_relative_is_basename() {
 }
 
 #[test]
+#[serial]
 fn only_dirty_filter() {
     let (d1, clean) = setup_repo(true);
     let (d2, dirty) = setup_repo(true);

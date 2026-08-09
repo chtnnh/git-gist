@@ -33,7 +33,7 @@ fn cache_expired_and_mismatched_is_ignored() {
     let child = root.path().join("c");
     git_init(&child);
 
-    let cache_dir = home.path().join("cache").join("git-gist");
+    let cache_dir = home.path().join(".git-gist");
     fs::create_dir_all(&cache_dir).unwrap();
     let old = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -52,16 +52,16 @@ fn cache_expired_and_mismatched_is_ignored() {
     let prev = std::env::current_dir().unwrap();
     std::env::set_current_dir(root.path()).unwrap();
     let cli = Cli::try_parse_from(["gg", "list"]).unwrap();
-    let cfg = Config {
+    let mut cfg = Config {
         depth: 5,
         ..Config::default().with_builtins()
     };
-    let repos = discover::select_repos(&cli, &cfg).unwrap();
+    let repos = discover::select_repos(&cli, &mut cfg).unwrap();
     assert_eq!(repos.len(), 1);
 
     // corrupt cache
     fs::write(cache_dir.join("discovery.json"), "{not-json").unwrap();
-    let _ = discover::select_repos(&cli, &cfg).unwrap();
+    let _ = discover::select_repos(&cli, &mut cfg).unwrap();
 
     // mismatched depth in cache
     let body = serde_json::json!({
@@ -72,7 +72,7 @@ fn cache_expired_and_mismatched_is_ignored() {
         "repos": [],
     });
     fs::write(cache_dir.join("discovery.json"), body.to_string()).unwrap();
-    let _ = discover::select_repos(&cli, &cfg).unwrap();
+    let _ = discover::select_repos(&cli, &mut cfg).unwrap();
 
     std::env::set_current_dir(prev).unwrap();
 }

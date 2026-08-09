@@ -21,7 +21,10 @@ struct DiscoveryCache {
     repos: Vec<PathBuf>,
 }
 
-pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
+pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
+    // Automatic enrollment (throttled); `gg update` remains the force fallback.
+    let _ = crate::auto_enroll::maybe_auto_enroll(cfg, cli);
+
     let root = resolve_root(cli, cfg)?;
     let depth = if cfg.depth == 0 {
         usize::MAX
@@ -73,6 +76,8 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         }
     }
 
+    let universe_len = paths.len();
+
     // Resolve include/group targets
     let mut selected: BTreeSet<PathBuf> = if cli.include.is_empty() && cli.group.is_empty() {
         paths.iter().cloned().collect()
@@ -113,6 +118,12 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
 
     selected.retain(|p| !is_excluded(p, &exclude));
 
+    let filtered = !cli.include.is_empty()
+        || !cli.group.is_empty()
+        || !cli.exclude.is_empty()
+        || !cli.tag.is_empty();
+    let selected_len = selected.len();
+
     let mut repos: Vec<Repo> = selected.into_iter().map(Repo::new).collect();
     repos.sort_by(|a, b| a.path.cmp(&b.path));
 
@@ -125,6 +136,35 @@ pub fn select_repos(cli: &Cli, cfg: &Config) -> Result<Vec<Repo>> {
         || cli.only_detached
     {
         repos = crate::filters::apply_status_filters(repos, cli, cfg.jobs)?;
+    }
+
+    if filtered
+        && !cli.quiet
+        && !matches!(
+            cli.format,
+            crate::cli::OutputFormat::Json | crate::cli::OutputFormat::Ndjson
+        )
+    {
+        let mut bits = Vec::new();
+        if !cli.group.is_empty() {
+            bits.push(format!("group {}", cli.group.join(",")));
+        }
+        if !cli.tag.is_empty() {
+            bits.push(format!("tag {}", cli.tag.join(",")));
+        }
+        if !cli.include.is_empty() {
+            bits.push(format!("in {}", cli.include.join(",")));
+        }
+        if !cli.exclude.is_empty() {
+            bits.push(format!("exclude {}", cli.exclude.join(",")));
+        }
+        let skipped = universe_len.saturating_sub(selected_len);
+        let reason = if bits.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", bits.join("; "))
+        };
+        eprintln!("selection: {selected_len} repo(s){reason}, {skipped} skipped");
     }
 
     Ok(repos)

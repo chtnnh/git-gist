@@ -74,11 +74,11 @@ fn select_repos_respects_include() {
     std::env::set_current_dir(root.path()).unwrap();
 
     let cli = cli_from(&["--in", a.to_str().unwrap(), "list"]);
-    let cfg = Config {
+    let mut cfg = Config {
         depth: 4,
         ..Config::default().with_builtins()
     };
-    let repos = discover::select_repos(&cli, &cfg).unwrap();
+    let repos = discover::select_repos(&cli, &mut cfg).unwrap();
     assert_eq!(repos.len(), 1);
     assert!(repos[0].path.ends_with("a"));
 
@@ -100,11 +100,11 @@ fn basename_target_resolution() {
     std::env::set_current_dir(root.path()).unwrap();
 
     let cli = cli_from(&["--in", "payments", "list", "--refresh"]);
-    let cfg = Config {
+    let mut cfg = Config {
         depth: 4,
         ..Config::default().with_builtins()
     };
-    let repos = discover::select_repos(&cli, &cfg).unwrap();
+    let repos = discover::select_repos(&cli, &mut cfg).unwrap();
     assert_eq!(repos.len(), 1);
 
     std::env::set_current_dir(prev).unwrap();
