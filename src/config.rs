@@ -226,11 +226,39 @@ fn legacy_cache_paths() -> Vec<PathBuf> {
     paths
 }
 
+/// True when dest is missing, empty, or a schema-only stub with no real settings.
+fn config_is_unmigrated_stub(path: &Path) -> bool {
+    if !path.is_file() {
+        return true;
+    }
+    let Ok(text) = fs::read_to_string(path) else {
+        return true;
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    // Treat a bare schema_version file as a placeholder created by `config edit`.
+    let without_schema: String = trimmed
+        .lines()
+        .filter(|l| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with('#') && !t.starts_with("schema_version")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    without_schema.trim().is_empty()
+}
+
+fn legacy_config_has_content(path: &Path) -> bool {
+    !config_is_unmigrated_stub(path)
+}
+
 /// Migrate legacy config into `~/.git-gist/config.toml` if needed.
 fn ensure_migrated_config() -> Result<(PathBuf, Vec<String>)> {
     let mut warnings = Vec::new();
     let dest = global_config_path()?;
-    if dest.is_file() {
+    if dest.is_file() && !config_is_unmigrated_stub(&dest) {
         return Ok((dest, warnings));
     }
     for legacy in legacy_global_config_paths() {
@@ -242,6 +270,13 @@ fn ensure_migrated_config() -> Result<(PathBuf, Vec<String>)> {
             if target == dest || canonicalize_soft(&legacy) == canonicalize_soft(&dest) {
                 continue;
             }
+        }
+        if !legacy_config_has_content(&legacy) {
+            continue;
+        }
+        // Do not overwrite a real dest with legacy; only fill empty/stub dest.
+        if dest.is_file() && !config_is_unmigrated_stub(&dest) {
+            return Ok((dest, warnings));
         }
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)?;
@@ -631,10 +666,10 @@ fn merge_config(mut base: Config, overlay: Config) -> Config {
 }
 
 pub fn save_global(cfg: &Config) -> Result<PathBuf> {
-    let path = cfg
-        .path
-        .clone()
-        .unwrap_or_else(|| global_config_path().expect("home"));
+    let path = match &cfg.path {
+        Some(p) => p.clone(),
+        None => global_config_path()?,
+    };
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

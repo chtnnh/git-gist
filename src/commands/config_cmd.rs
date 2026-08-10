@@ -6,6 +6,27 @@ use anyhow::Result;
 use std::io::Write;
 use std::process::Command;
 
+pub(crate) fn default_editor() -> String {
+    if let Ok(e) = std::env::var("EDITOR") {
+        if !e.is_empty() {
+            return e;
+        }
+    }
+    if let Ok(e) = std::env::var("VISUAL") {
+        if !e.is_empty() {
+            return e;
+        }
+    }
+    #[cfg(windows)]
+    {
+        "notepad.exe".into()
+    }
+    #[cfg(not(windows))]
+    {
+        "vi".into()
+    }
+}
+
 pub fn run(action: &ConfigAction, cli: &Cli, cfg: &Config, out: &mut OutputCtx) -> Result<()> {
     match action {
         ConfigAction::Show => {
@@ -56,10 +77,13 @@ pub fn run(action: &ConfigAction, cli: &Cli, cfg: &Config, out: &mut OutputCtx) 
             if !path.is_file() {
                 std::fs::write(&path, "schema_version = 1\n")?;
             }
-            let editor = std::env::var("EDITOR")
-                .or_else(|_| std::env::var("VISUAL"))
-                .unwrap_or_else(|_| "vi".into());
-            let status = Command::new(&editor).arg(&path).status()?;
+            let editor = default_editor();
+            let status = match Command::new(&editor).arg(&path).status() {
+                Ok(s) => s,
+                Err(e) => {
+                    anyhow::bail!("failed to launch editor `{editor}`: {e}; set EDITOR or VISUAL");
+                }
+            };
             if !status.success() {
                 anyhow::bail!("editor {editor} exited with {status}");
             }
@@ -143,4 +167,39 @@ fn run_enroll(action: &EnrollAction, cli: &Cli, cfg: &Config, out: &mut OutputCt
         EnrollAction::Wizard => crate::interactive::enroll(cli, cfg, out),
         EnrollAction::Ui => crate::interactive::ui_focused(cli, cfg, out, crate::tui::Area::Enroll),
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_editor_respects_env() {
+        // Avoid racing other env-sensitive tests in this process.
+        let _guard = ENV_LOCK.lock().unwrap();
+        let old_editor = std::env::var_os("EDITOR");
+        let old_visual = std::env::var_os("VISUAL");
+        std::env::set_var("EDITOR", "custom-editor-gg");
+        std::env::remove_var("VISUAL");
+        assert_eq!(default_editor(), "custom-editor-gg");
+        std::env::remove_var("EDITOR");
+        std::env::set_var("VISUAL", "visual-editor-gg");
+        assert_eq!(default_editor(), "visual-editor-gg");
+        std::env::remove_var("VISUAL");
+        let fallback = default_editor();
+        #[cfg(windows)]
+        assert_eq!(fallback, "notepad.exe");
+        #[cfg(not(windows))]
+        assert_eq!(fallback, "vi");
+        match old_editor {
+            Some(v) => std::env::set_var("EDITOR", v),
+            None => std::env::remove_var("EDITOR"),
+        }
+        match old_visual {
+            Some(v) => std::env::set_var("VISUAL", v),
+            None => std::env::remove_var("VISUAL"),
+        }
+    }
+
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 }

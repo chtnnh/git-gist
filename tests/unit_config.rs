@@ -139,6 +139,26 @@ fn migrates_legacy_xdg_config() {
 }
 
 #[test]
+#[serial]
+fn migrates_when_dest_is_schema_stub() {
+    let home = tempdir().unwrap();
+    let dest_dir = home.path().join(".git-gist");
+    fs::create_dir_all(&dest_dir).unwrap();
+    fs::write(dest_dir.join("config.toml"), "schema_version = 1\n").unwrap();
+    let legacy = home.path().join("config").join("git-gist");
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(
+        legacy.join("config.toml"),
+        "schema_version = 1\ndepth = 7\n",
+    )
+    .unwrap();
+    set_test_home(home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    let cfg = config::load(&empty_cli()).unwrap();
+    assert_eq!(cfg.depth, 7);
+}
+
+#[test]
 fn find_local_config_walks_up() {
     let root = tempdir().unwrap();
     let nested = root.path().join("a").join("b");
