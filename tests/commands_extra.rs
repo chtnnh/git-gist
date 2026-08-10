@@ -94,13 +94,27 @@ origin = "https://example.com/rich.git"
 fn sync_real_fetch_json() {
     let f = Fixture::with_repos(&["local"]);
     let output = f.gg().args(["--format", "json", "sync"]).output().unwrap();
-    // fetch may fail without remotes; command should still produce output or a clean error
+    // fetch may fail without remotes; command should still produce a single JSON document
     assert!(
         output.status.code().unwrap_or(1) <= 1,
         "unexpected status {:?}: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
+    let stdout = &output.stdout;
+    if stdout.is_empty() {
+        return;
+    }
+    let value: serde_json::Value = serde_json::from_slice(stdout).unwrap_or_else(|e| {
+        panic!(
+            "sync JSON must be a single parseable document: {e}; stdout={}",
+            String::from_utf8_lossy(stdout)
+        )
+    });
+    assert!(value.is_array(), "expected sync JSON array, got {value}");
+    let row = &value.as_array().unwrap()[0];
+    assert!(row.get("fetch_ok").is_some(), "missing fetch_ok: {row}");
+    assert!(row.get("name").is_some(), "missing name: {row}");
 }
 
 #[test]
@@ -212,6 +226,10 @@ fn fail_fast_and_quiet_passthrough() {
 #[test]
 fn each_failure_aggregates() {
     let f = Fixture::with_repos(&["x"]);
+    // Cross-platform failure (Windows `each` uses COMSPEC, not `sh`).
+    #[cfg(windows)]
+    f.gg().args(["each", "exit", "/b", "1"]).assert().failure();
+    #[cfg(not(windows))]
     f.gg().args(["each", "false"]).assert().failure();
 }
 

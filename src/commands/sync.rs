@@ -5,7 +5,9 @@ use crate::output::{CellStyle, OutputCtx};
 use crate::repo::{self, Repo};
 use anyhow::Result;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Serialize)]
 struct SyncRow {
@@ -55,8 +57,12 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
         return Ok(());
     }
 
-    // Fetch; ignore aggregate failure so we still report per-repo status
-    let fetch_ok = exec::run_git(repos, &["fetch", "--all", "--prune"], cli, cfg, out).is_ok();
+    // Fetch without writing JSON/human output — sync emits its own summary.
+    let fetch_results = exec::run_git_inner(repos, &["fetch", "--all", "--prune"], cli, cfg)?;
+    let fetch_by_path: HashMap<PathBuf, bool> = fetch_results
+        .into_iter()
+        .map(|r| (r.repo.path.clone(), r.success && !r.skipped))
+        .collect();
 
     let mut rows = Vec::new();
     for repo in repos {
@@ -66,6 +72,7 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
             let outp = repo::git_in(&repo.path, &["pull", "--ff-only"]);
             pulled = outp.map(|o| o.status.success()).unwrap_or(false);
         }
+        let fetch_ok = fetch_by_path.get(&repo.path).copied().unwrap_or(false);
         rows.push(SyncRow {
             name: repo.name.clone(),
             path: repo.display_path(),
