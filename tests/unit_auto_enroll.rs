@@ -34,13 +34,20 @@ fn init_repo(path: &std::path::Path) {
     git(path, &["commit", "-m", "c"]);
 }
 
+fn set_test_home(home: &std::path::Path) {
+    std::env::set_var("GIT_GIST_HOME", home);
+    std::env::set_var("HOME", home);
+    std::env::set_var("USERPROFILE", home);
+    std::env::set_var("XDG_CONFIG_HOME", home.join("config"));
+    std::env::set_var("XDG_CACHE_HOME", home.join("cache"));
+}
+
 #[test]
 #[serial]
 fn apply_warns_on_root_equals_watch_and_missing_path() {
     let home = tempdir().unwrap();
     let root = tempdir().unwrap();
-    std::env::set_var("HOME", home.path());
-    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    set_test_home(home.path());
 
     init_repo(&root.path().join("a"));
 
@@ -92,7 +99,7 @@ fn apply_warns_on_root_equals_watch_and_missing_path() {
 fn apply_fixes_membership_and_prunes_stale() {
     let home = tempdir().unwrap();
     let root = tempdir().unwrap();
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
 
     let repo = root.path().join("proj");
     init_repo(&repo);
@@ -133,7 +140,7 @@ fn apply_fixes_membership_and_prunes_stale() {
 fn apply_warns_when_group_grows_a_lot() {
     let home = tempdir().unwrap();
     let root = tempdir().unwrap();
-    std::env::set_var("HOME", home.path());
+    set_test_home(home.path());
 
     for i in 0..22 {
         init_repo(&root.path().join(format!("r{i}")));
@@ -169,9 +176,7 @@ fn apply_warns_when_group_grows_a_lot() {
 fn maybe_auto_enroll_throttles_after_scan() {
     let home = tempdir().unwrap();
     let root = tempdir().unwrap();
-    std::env::set_var("HOME", home.path());
-    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
-    std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
+    set_test_home(home.path());
 
     init_repo(&root.path().join("one"));
 
@@ -202,6 +207,50 @@ fn maybe_auto_enroll_throttles_after_scan() {
     let cli_refresh = Cli::try_parse_from(["gg", "--refresh", "list"]).unwrap();
     let forced = auto_enroll::maybe_auto_enroll(&mut cfg, &cli_refresh).unwrap();
     assert!(forced.is_some());
+}
+
+#[test]
+#[serial]
+fn maybe_auto_enroll_rescan_after_interval() {
+    let home = tempdir().unwrap();
+    let root = tempdir().unwrap();
+    set_test_home(home.path());
+
+    init_repo(&root.path().join("one"));
+
+    let mut cfg = Config {
+        path: Some(home.path().join(".git-gist/config.toml")),
+        root: Some(root.path().to_path_buf()),
+        auto_enroll: vec![AutoEnroll {
+            path: root.path().to_path_buf(),
+            path_prefix: None,
+            depth: 3,
+            groups: vec![],
+            tags: vec![],
+        }],
+        ..Config::default()
+    };
+    fs::create_dir_all(cfg.path.as_ref().unwrap().parent().unwrap()).unwrap();
+    config::save_global(&cfg).unwrap();
+
+    let cli = Cli::try_parse_from(["gg", "list"]).unwrap();
+    assert!(auto_enroll::maybe_auto_enroll(&mut cfg, &cli)
+        .unwrap()
+        .is_some());
+    cfg = config::load(&cli).unwrap();
+    assert!(auto_enroll::maybe_auto_enroll(&mut cfg, &cli)
+        .unwrap()
+        .is_none());
+
+    // Age the throttle state past ENROLL_INTERVAL without changing watch mtime.
+    let state_path = config::state_path().unwrap();
+    let mut state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["last_run_unix"] = serde_json::json!(1u64);
+    fs::write(&state_path, serde_json::to_string_pretty(&state).unwrap()).unwrap();
+
+    let again = auto_enroll::maybe_auto_enroll(&mut cfg, &cli).unwrap();
+    assert!(again.is_some(), "expected rescan after interval elapsed");
 }
 
 #[test]

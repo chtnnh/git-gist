@@ -31,11 +31,18 @@ pub struct UpdateReport {
     pub warnings: Vec<String>,
 }
 
+/// Re-scan at least this often so nested repo creation under an unchanged
+/// watch-root mtime is still picked up (same order as discovery cache TTL).
+const ENROLL_INTERVAL_SECS: u64 = 3600;
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct EnrollState {
     last_run_unix: u64,
     /// Watch path → last observed mtime (secs)
     watch_mtimes: BTreeMap<String, u64>,
+    /// Hash of `[[auto_enroll]]` rules at last successful scan.
+    #[serde(default)]
+    rules_hash: String,
 }
 
 pub fn apply_auto_enroll(cfg: &Config, dry_run: bool, prune_stale: bool) -> Result<UpdateReport> {
@@ -211,6 +218,14 @@ fn needs_scan(cfg: &Config) -> Result<bool> {
     if state.last_run_unix == 0 {
         return Ok(true);
     }
+    let now = now_secs();
+    if now.saturating_sub(state.last_run_unix) > ENROLL_INTERVAL_SECS {
+        return Ok(true);
+    }
+    let hash = rules_hash(&cfg.auto_enroll);
+    if state.rules_hash != hash {
+        return Ok(true);
+    }
     for rule in &cfg.auto_enroll {
         let key = rule.path.display().to_string();
         let mtime = dir_mtime_secs(&rule.path);
@@ -222,10 +237,40 @@ fn needs_scan(cfg: &Config) -> Result<bool> {
     Ok(false)
 }
 
+fn rules_hash(rules: &[AutoEnroll]) -> String {
+    // Stable fingerprint of watch rules so edits invalidate the throttle.
+    let mut parts: Vec<String> = rules
+        .iter()
+        .map(|r| {
+            format!(
+                "{}|{}|{}|{}|{}",
+                r.path.display(),
+                r.path_prefix.as_deref().unwrap_or(""),
+                r.depth,
+                r.groups.join(","),
+                r.tags.join(",")
+            )
+        })
+        .collect();
+    parts.sort();
+    format!("{:x}", simple_hash(&parts.join("\n")))
+}
+
+fn simple_hash(s: &str) -> u64 {
+    // FNV-1a 64-bit — good enough for config fingerprinting.
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in s.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
 fn record_state(cfg: &Config) -> Result<()> {
     let mut state = EnrollState {
         last_run_unix: now_secs(),
         watch_mtimes: BTreeMap::new(),
+        rules_hash: rules_hash(&cfg.auto_enroll),
     };
     for rule in &cfg.auto_enroll {
         let key = rule.path.display().to_string();
@@ -269,7 +314,11 @@ fn matches_path_prefix(repo: &Path, watch_root: &Path, prefix: Option<&str>) -> 
     let Some(prefix) = prefix.map(str::trim).filter(|s| !s.is_empty()) else {
         return true;
     };
-    let prefix = prefix.trim_start_matches("./").trim_end_matches('/');
+    let prefix = prefix
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .trim_end_matches('/')
+        .to_string();
     let Ok(rel) = repo.strip_prefix(watch_root) else {
         return false;
     };
@@ -394,5 +443,32 @@ mod tests {
         assert!(matches_path_prefix(&oss, &root, Some("oss")));
         assert!(!matches_path_prefix(&learn, &root, Some("oss")));
         assert!(matches_path_prefix(&learn, &root, None));
+        // Windows-style prefix separators must match forward-slash relative paths.
+        assert!(matches_path_prefix(&oss, &root, Some("oss\\proj")));
+        assert!(matches_path_prefix(
+            &PathBuf::from("/tech/oss/pkg/r"),
+            &root,
+            Some("oss\\pkg")
+        ));
+    }
+
+    #[test]
+    fn rules_hash_changes_with_prefix() {
+        let a = vec![AutoEnroll {
+            path: PathBuf::from("/w"),
+            path_prefix: Some("oss".into()),
+            depth: 3,
+            groups: vec![],
+            tags: vec![],
+        }];
+        let b = vec![AutoEnroll {
+            path: PathBuf::from("/w"),
+            path_prefix: Some("learn".into()),
+            depth: 3,
+            groups: vec![],
+            tags: vec![],
+        }];
+        assert_ne!(rules_hash(&a), rules_hash(&b));
+        assert_eq!(rules_hash(&a), rules_hash(&a));
     }
 }
