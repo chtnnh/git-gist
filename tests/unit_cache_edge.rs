@@ -161,7 +161,7 @@ fn exec_empty_repos_and_shell_fail() {
     };
     let mut out = OutputCtx::new(false, OutputFormat::Human, false, 0);
     exec::run_git(&[], &["status"], &cli, &cfg, &mut out).unwrap();
-    exec::run_shell(&[], &["true".into()], &cli, &cfg, &mut out).unwrap();
+    exec::run_shell(&[], &["echo".into(), "ok".into()], &cli, &cfg, &mut out).unwrap();
 
     let dir = tempdir().unwrap();
     Command::new("git")
@@ -172,16 +172,13 @@ fn exec_empty_repos_and_shell_fail() {
         .status()
         .unwrap();
     let repo = git_gist::repo::Repo::new(dir.path().to_path_buf());
-    let cli = Cli::try_parse_from(["gg", "--fail-fast", "--timing", "each", "false"]).unwrap();
+    let cli = Cli::try_parse_from(["gg", "--fail-fast", "--timing", "each", "echo"]).unwrap();
     let mut out = OutputCtx::new(false, OutputFormat::Human, false, 0);
-    assert!(exec::run_shell(
-        std::slice::from_ref(&repo),
-        &["false".into()],
-        &cli,
-        &cfg,
-        &mut out
-    )
-    .is_err());
+    #[cfg(windows)]
+    let fail_cmd = vec!["exit".into(), "/b".into(), "1".into()];
+    #[cfg(not(windows))]
+    let fail_cmd = vec!["false".into()];
+    assert!(exec::run_shell(std::slice::from_ref(&repo), &fail_cmd, &cli, &cfg, &mut out).is_err());
 }
 
 #[test]

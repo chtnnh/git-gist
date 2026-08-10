@@ -8,7 +8,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -19,6 +19,8 @@ pub struct RunResult {
     pub stdout: String,
     pub stderr: String,
     pub duration_ms: u128,
+    /// True when `--fail-fast` stopped scheduling and this repo never ran.
+    pub skipped: bool,
 }
 
 pub fn passthrough(
@@ -90,6 +92,88 @@ pub fn job_pool(cfg: &Config) -> Result<rayon::ThreadPool> {
     Ok(rayon::ThreadPoolBuilder::new().num_threads(jobs).build()?)
 }
 
+/// Run `git` in each repo without writing to `OutputCtx`.
+/// Used by callers (e.g. `sync`) that need per-repo results without JSON side effects.
+pub fn run_git_inner(
+    repos: &[Repo],
+    args: &[&str],
+    cli: &Cli,
+    cfg: &Config,
+) -> Result<Vec<RunResult>> {
+    if repos.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let pool = job_pool(cfg)?;
+    let stop = Arc::new(AtomicBool::new(false));
+
+    let results: Vec<RunResult> = pool.install(|| {
+        repos
+            .par_iter()
+            .map(|repo| {
+                if cli.fail_fast && stop.load(Ordering::Relaxed) {
+                    return RunResult {
+                        repo: repo.clone(),
+                        success: false,
+                        code: 130,
+                        stdout: String::new(),
+                        stderr: "skipped (--fail-fast)".into(),
+                        duration_ms: 0,
+                        skipped: true,
+                    };
+                }
+                let start = Instant::now();
+                let output = crate::repo::git_command()
+                    .args(args)
+                    .current_dir(&repo.path)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output();
+
+                let (success, code, stdout, stderr) = match output {
+                    Ok(o) => (
+                        o.status.success(),
+                        o.status.code().unwrap_or(1),
+                        String::from_utf8_lossy(&o.stdout).into_owned(),
+                        String::from_utf8_lossy(&o.stderr).into_owned(),
+                    ),
+                    Err(e) => (false, 127, String::new(), e.to_string()),
+                };
+
+                if !success && cli.fail_fast {
+                    stop.store(true, Ordering::Relaxed);
+                }
+
+                RunResult {
+                    repo: repo.clone(),
+                    success,
+                    code,
+                    stdout,
+                    stderr,
+                    duration_ms: start.elapsed().as_millis(),
+                    skipped: false,
+                }
+            })
+            .collect()
+    });
+
+    let mut results = results;
+    results.sort_by(|a, b| a.repo.path.cmp(&b.repo.path));
+    Ok(results)
+}
+
+fn report_run_failures(results: &[RunResult], total: usize) -> Result<()> {
+    let n_fail = results.iter().filter(|r| !r.success && !r.skipped).count();
+    let n_skip = results.iter().filter(|r| r.skipped).count();
+    if n_fail == 0 && n_skip == 0 {
+        return Ok(());
+    }
+    if n_skip > 0 {
+        anyhow::bail!("{n_fail} of {total} repositories failed ({n_skip} skipped)");
+    }
+    anyhow::bail!("{n_fail} of {total} repositories failed");
+}
+
 pub fn run_git(
     repos: &[Repo],
     args: &[&str],
@@ -115,57 +199,7 @@ pub fn run_git(
         return Ok(());
     }
 
-    let pool = job_pool(cfg)?;
-    let stop = Arc::new(AtomicBool::new(false));
-    let failures = Arc::new(AtomicUsize::new(0));
-
-    let results: Vec<RunResult> = pool.install(|| {
-        repos
-            .par_iter()
-            .filter_map(|repo| {
-                if cli.fail_fast && stop.load(Ordering::Relaxed) {
-                    return None;
-                }
-                let start = Instant::now();
-                let output = crate::repo::git_command()
-                    .args(args)
-                    .current_dir(&repo.path)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output();
-
-                let (success, code, stdout, stderr) = match output {
-                    Ok(o) => (
-                        o.status.success(),
-                        o.status.code().unwrap_or(1),
-                        String::from_utf8_lossy(&o.stdout).into_owned(),
-                        String::from_utf8_lossy(&o.stderr).into_owned(),
-                    ),
-                    Err(e) => (false, 127, String::new(), e.to_string()),
-                };
-
-                if !success {
-                    failures.fetch_add(1, Ordering::Relaxed);
-                    if cli.fail_fast {
-                        stop.store(true, Ordering::Relaxed);
-                    }
-                }
-
-                Some(RunResult {
-                    repo: repo.clone(),
-                    success,
-                    code,
-                    stdout,
-                    stderr,
-                    duration_ms: start.elapsed().as_millis(),
-                })
-            })
-            .collect()
-    });
-
-    // Stable order by path
-    let mut results = results;
-    results.sort_by(|a, b| a.repo.path.cmp(&b.repo.path));
+    let results = run_git_inner(repos, args, cli, cfg)?;
 
     if out.is_json() {
         let payload: Vec<_> = results
@@ -179,6 +213,7 @@ pub fn run_git(
                     "stdout": r.stdout,
                     "stderr": r.stderr,
                     "duration_ms": r.duration_ms,
+                    "skipped": r.skipped,
                 })
             })
             .collect();
@@ -205,18 +240,51 @@ pub fn run_git(
                 writeln!(
                     out.stdout(),
                     "  [{}] {}ms",
-                    if r.success { "ok" } else { "fail" },
+                    if r.skipped {
+                        "skip"
+                    } else if r.success {
+                        "ok"
+                    } else {
+                        "fail"
+                    },
                     r.duration_ms
                 )?;
             }
         }
     }
 
-    let n_fail = failures.load(Ordering::Relaxed);
-    if n_fail > 0 {
-        anyhow::bail!("{n_fail} of {} repositories failed", results.len());
+    report_run_failures(&results, repos.len())
+}
+
+/// Resolve Windows shell executable from `COMSPEC`, falling back when unset/blank.
+pub fn resolve_windows_shell(comspec: Option<&str>) -> String {
+    comspec
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("cmd.exe")
+        .to_string()
+}
+
+/// Platform shell for `gg each`: `sh -c` on Unix, `COMSPEC /C` (or `cmd.exe`) on Windows.
+/// POSIX-only scripts on Windows need Git Bash or WSL.
+pub fn shell_for_each() -> (String, String) {
+    #[cfg(windows)]
+    {
+        let program = resolve_windows_shell(std::env::var("COMSPEC").ok().as_deref());
+        (program, "/C".into())
     }
-    Ok(())
+    #[cfg(not(windows))]
+    {
+        ("sh".into(), "-c".into())
+    }
+}
+
+fn shell_display(program: &str, flag: &str) -> String {
+    let base = std::path::Path::new(program)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(program);
+    format!("{base} {flag}")
 }
 
 pub fn run_shell(
@@ -234,11 +302,13 @@ pub fn run_shell(
         return Ok(());
     }
 
+    let (shell_prog, shell_flag) = shell_for_each();
     let cmd_display = command.join(" ");
+    let shell_label = shell_display(&shell_prog, &shell_flag);
     if cli.dry_run {
         for repo in repos {
             out.repo_header(&repo.name, &repo.display_path())?;
-            writeln!(out.stdout(), "dry-run: sh -c {cmd_display:?}")?;
+            writeln!(out.stdout(), "dry-run: {shell_label} {cmd_display:?}")?;
         }
         return Ok(());
     }
@@ -246,18 +316,25 @@ pub fn run_shell(
     let pool = job_pool(cfg)?;
     let script = cmd_display.clone();
     let stop = Arc::new(AtomicBool::new(false));
-    let failures = Arc::new(AtomicUsize::new(0));
 
     let results: Vec<RunResult> = pool.install(|| {
         repos
             .par_iter()
-            .filter_map(|repo| {
+            .map(|repo| {
                 if cli.fail_fast && stop.load(Ordering::Relaxed) {
-                    return None;
+                    return RunResult {
+                        repo: repo.clone(),
+                        success: false,
+                        code: 130,
+                        stdout: String::new(),
+                        stderr: "skipped (--fail-fast)".into(),
+                        duration_ms: 0,
+                        skipped: true,
+                    };
                 }
                 let start = Instant::now();
-                let output = Command::new("sh")
-                    .arg("-c")
+                let output = Command::new(&shell_prog)
+                    .arg(&shell_flag)
                     .arg(&script)
                     .current_dir(&repo.path)
                     .stdout(Stdio::piped())
@@ -270,22 +347,27 @@ pub fn run_shell(
                         String::from_utf8_lossy(&o.stdout).into_owned(),
                         String::from_utf8_lossy(&o.stderr).into_owned(),
                     ),
-                    Err(e) => (false, 127, String::new(), e.to_string()),
-                };
-                if !success {
-                    failures.fetch_add(1, Ordering::Relaxed);
-                    if cli.fail_fast {
-                        stop.store(true, Ordering::Relaxed);
+                    Err(e) => {
+                        #[cfg(windows)]
+                        let hint =
+                            format!("{e}; set COMSPEC or use Git Bash/WSL for POSIX shell syntax");
+                        #[cfg(not(windows))]
+                        let hint = e.to_string();
+                        (false, 127, String::new(), hint)
                     }
+                };
+                if !success && cli.fail_fast {
+                    stop.store(true, Ordering::Relaxed);
                 }
-                Some(RunResult {
+                RunResult {
                     repo: repo.clone(),
                     success,
                     code,
                     stdout,
                     stderr,
                     duration_ms: start.elapsed().as_millis(),
-                })
+                    skipped: false,
+                }
             })
             .collect()
     });
@@ -304,6 +386,7 @@ pub fn run_shell(
                     "stdout": r.stdout,
                     "stderr": r.stderr,
                     "duration_ms": r.duration_ms,
+                    "skipped": r.skipped,
                 })
             })
             .collect();
@@ -332,9 +415,5 @@ pub fn run_shell(
         }
     }
 
-    let n_fail = failures.load(Ordering::Relaxed);
-    if n_fail > 0 {
-        anyhow::bail!("{n_fail} of {} repositories failed", results.len());
-    }
-    Ok(())
+    report_run_failures(&results, repos.len())
 }
