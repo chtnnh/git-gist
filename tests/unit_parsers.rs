@@ -42,6 +42,18 @@ fn parse_porcelain_empty_and_trailing() {
 }
 
 #[test]
+fn resolve_target_circular_group_errors() {
+    let mut cfg = Config::default().with_builtins();
+    cfg.groups.insert("a".into(), vec!["b".into()]);
+    cfg.groups.insert("b".into(), vec!["a".into()]);
+    let err = resolve_target("a", &cfg, &[]).unwrap_err();
+    assert!(
+        err.to_string().contains("circular"),
+        "expected circular group error, got {err}"
+    );
+}
+
+#[test]
 fn resolve_target_group_alias_glob_unknown() {
     let dir = tempdir().unwrap();
     let a = dir.path().join("alpha-app");

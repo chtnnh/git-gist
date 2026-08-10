@@ -66,9 +66,11 @@ fn select_repos_respects_include() {
     git_init(&b);
 
     let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
     std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
     std::env::set_var("HOME", home.path());
+    std::env::set_var("USERPROFILE", home.path());
 
     let prev = std::env::current_dir().unwrap();
     std::env::set_current_dir(root.path()).unwrap();
@@ -93,6 +95,7 @@ fn basename_target_resolution() {
     git_init(&named);
 
     let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
     std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
     std::env::set_var("HOME", home.path());
@@ -106,6 +109,145 @@ fn basename_target_resolution() {
     };
     let repos = discover::select_repos(&cli, &mut cfg).unwrap();
     assert_eq!(repos.len(), 1);
+
+    std::env::set_current_dir(prev).unwrap();
+}
+
+#[test]
+#[serial]
+fn tag_only_selection_and_status_summary() {
+    let root = tempdir().unwrap();
+    let clean = root.path().join("clean");
+    let dirty = root.path().join("dirty");
+    for path in [&clean, &dirty] {
+        git_init(path);
+        fs::write(path.join("f"), "x").unwrap();
+        Command::new("git")
+            .args(["add", "f"])
+            .current_dir(path)
+            .env("GIT_AUTHOR_NAME", "T")
+            .env("GIT_AUTHOR_EMAIL", "t@e.com")
+            .env("GIT_COMMITTER_NAME", "T")
+            .env("GIT_COMMITTER_EMAIL", "t@e.com")
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "c"])
+            .current_dir(path)
+            .env("GIT_AUTHOR_NAME", "T")
+            .env("GIT_AUTHOR_EMAIL", "t@e.com")
+            .env("GIT_COMMITTER_NAME", "T")
+            .env("GIT_COMMITTER_EMAIL", "t@e.com")
+            .status()
+            .unwrap();
+    }
+    fs::write(dirty.join("x"), "1").unwrap();
+
+    let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
+    std::env::set_var("HOME", home.path());
+    std::env::set_var("USERPROFILE", home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
+    let prev = std::env::current_dir().unwrap();
+    std::env::set_current_dir(root.path()).unwrap();
+
+    let mut cfg = Config {
+        depth: 4,
+        aliases: [
+            ("clean".into(), clean.clone()),
+            ("dirty".into(), dirty.clone()),
+        ]
+        .into_iter()
+        .collect(),
+        tags: [("work".into(), vec!["clean".into(), "dirty".into()])]
+            .into_iter()
+            .collect(),
+        ..Config::default().with_builtins()
+    };
+
+    let cli = cli_from(&["--tag", "work", "--only-dirty", "list", "--refresh"]);
+    let repos = discover::select_repos(&cli, &mut cfg).unwrap();
+    assert_eq!(repos.len(), 1);
+    assert!(repos[0].path.ends_with("dirty"));
+
+    std::env::set_current_dir(prev).unwrap();
+}
+
+#[test]
+#[serial]
+fn select_repos_propagates_bad_ggignore() {
+    let root = tempdir().unwrap();
+    git_init(&root.path().join("a"));
+    // Unclosed bracket — invalid glob for globset.
+    fs::write(root.path().join(".ggignore"), "bad[pattern\n").unwrap();
+
+    let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
+    std::env::set_var("HOME", home.path());
+    std::env::set_var("USERPROFILE", home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
+    let prev = std::env::current_dir().unwrap();
+    std::env::set_current_dir(root.path()).unwrap();
+
+    let cli = cli_from(&["list", "--refresh"]);
+    let mut cfg = Config {
+        depth: 4,
+        ..Config::default().with_builtins()
+    };
+    let err = discover::select_repos(&cli, &mut cfg).unwrap_err();
+    assert!(
+        err.to_string().contains("discovery") || format!("{err:#}").contains("glob"),
+        "expected discovery/glob error, got {err:#}"
+    );
+
+    std::env::set_current_dir(prev).unwrap();
+}
+
+#[test]
+#[serial]
+fn auto_enroll_errors_warn_without_refresh() {
+    use git_gist::config::AutoEnroll;
+    use std::path::PathBuf;
+
+    let root = tempdir().unwrap();
+    git_init(&root.path().join("a"));
+    let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
+    std::env::set_var("HOME", home.path());
+    std::env::set_var("USERPROFILE", home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
+
+    // Make ~/.git-gist a file so state writes fail during auto-enroll.
+    fs::write(home.path().join(".git-gist"), "not-a-dir").unwrap();
+
+    let prev = std::env::current_dir().unwrap();
+    std::env::set_current_dir(root.path()).unwrap();
+
+    let mut cfg = Config {
+        depth: 3,
+        auto_enroll: vec![AutoEnroll {
+            path: root.path().to_path_buf(),
+            path_prefix: None,
+            depth: 2,
+            groups: vec![],
+            tags: vec![],
+        }],
+        path: Some(PathBuf::from("/tmp/unused-config.toml")),
+        ..Config::default().with_builtins()
+    };
+    // Soft: log and continue.
+    let cli_soft = cli_from(&["list"]);
+    assert!(discover::select_repos(&cli_soft, &mut cfg).is_ok());
+    // Forced: propagate Err.
+    let cli_force = cli_from(&["--refresh", "list"]);
+    let forced = discover::select_repos(&cli_force, &mut cfg);
+    assert!(
+        forced.is_err(),
+        "expected auto-enroll error under --refresh"
+    );
 
     std::env::set_current_dir(prev).unwrap();
 }

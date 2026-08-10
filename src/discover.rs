@@ -23,7 +23,20 @@ struct DiscoveryCache {
 
 pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
     // Automatic enrollment (throttled); `gg update` remains the force fallback.
-    let _ = crate::auto_enroll::maybe_auto_enroll(cfg, cli);
+    match crate::auto_enroll::maybe_auto_enroll(cfg, cli) {
+        Ok(Some(report)) => {
+            for w in &report.warnings {
+                eprintln!("git-gist: auto-enroll: {w}");
+            }
+        }
+        Ok(None) => {}
+        Err(err) => {
+            if cli.refresh {
+                return Err(err).context("auto-enroll");
+            }
+            eprintln!("git-gist: auto-enroll: {err:#}");
+        }
+    }
 
     let root = resolve_root(cli, cfg)?;
     let depth = if cfg.depth == 0 {
@@ -47,7 +60,7 @@ pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
     let mut paths = if let Some(paths) = cached {
         paths
     } else {
-        discover_repos(&root, depth, cfg).unwrap_or_default()
+        discover_repos(&root, depth, cfg).context("repository discovery failed")?
     };
 
     // Discovery skips the search root itself (child repos only). When the user
@@ -76,11 +89,14 @@ pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
         }
     }
 
-    let universe_len = paths.len();
+    let has_include_or_group = !cli.include.is_empty() || !cli.group.is_empty();
 
-    // Resolve include/group targets
-    let mut selected: BTreeSet<PathBuf> = if cli.include.is_empty() && cli.group.is_empty() {
+    // Resolve include/group targets. Tag-only selection seeds from tagged aliases
+    // (parity with `-g` / `-i` reaching out-of-discovery paths).
+    let mut selected: BTreeSet<PathBuf> = if !has_include_or_group && cli.tag.is_empty() {
         paths.iter().cloned().collect()
+    } else if !has_include_or_group && !cli.tag.is_empty() {
+        paths_for_tags(&cli.tag, cfg).into_iter().collect()
     } else {
         BTreeSet::new()
     };
@@ -99,8 +115,8 @@ pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
         }
     }
 
-    // Tag filter
-    if !cli.tag.is_empty() {
+    // Tag filter: intersect when combined with -i/-g; already seeded when tag-only.
+    if !cli.tag.is_empty() && has_include_or_group {
         let tag_paths = paths_for_tags(&cli.tag, cfg);
         selected.retain(|p| tag_paths.contains(p));
     }
@@ -122,19 +138,22 @@ pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
         || !cli.group.is_empty()
         || !cli.exclude.is_empty()
         || !cli.tag.is_empty();
-    let selected_len = selected.len();
+    // Count discovered repos that did not make the selection — do not use
+    // `paths.len() - selected.len()`, which undercounts when tags/groups pull
+    // in aliases outside the discovery universe (selected can exceed universe).
+    let skipped = paths.iter().filter(|p| !selected.contains(*p)).count();
+    let pre_status_len = selected.len();
 
     let mut repos: Vec<Repo> = selected.into_iter().map(Repo::new).collect();
     repos.sort_by(|a, b| a.path.cmp(&b.path));
 
-    // Status-based filters applied later when needed — but for selection flags, filter now
-    if cli.only_dirty
+    let status_filtered = cli.only_dirty
         || cli.only_clean
         || cli.only_ahead
         || cli.only_behind
         || cli.only_stashed
-        || cli.only_detached
-    {
+        || cli.only_detached;
+    if status_filtered {
         repos = crate::filters::apply_status_filters(repos, cli, cfg.jobs)?;
     }
 
@@ -158,13 +177,19 @@ pub fn select_repos(cli: &Cli, cfg: &mut Config) -> Result<Vec<Repo>> {
         if !cli.exclude.is_empty() {
             bits.push(format!("exclude {}", cli.exclude.join(",")));
         }
-        let skipped = universe_len.saturating_sub(selected_len);
+        let selected_len = repos.len();
         let reason = if bits.is_empty() {
             String::new()
         } else {
             format!(" ({})", bits.join("; "))
         };
-        eprintln!("selection: {selected_len} repo(s){reason}, {skipped} skipped");
+        if status_filtered && pre_status_len != selected_len {
+            eprintln!(
+                "selection: {pre_status_len} → {selected_len} repo(s){reason}, {skipped} skipped"
+            );
+        } else {
+            eprintln!("selection: {selected_len} repo(s){reason}, {skipped} skipped");
+        }
     }
 
     Ok(repos)
@@ -317,12 +342,26 @@ fn is_under_root(path: &Path, root: &Path) -> bool {
 }
 
 pub fn resolve_target(target: &str, cfg: &Config, discovered: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    let mut visited = HashSet::new();
+    resolve_target_inner(target, cfg, discovered, &mut visited)
+}
+
+fn resolve_target_inner(
+    target: &str,
+    cfg: &Config,
+    discovered: &[PathBuf],
+    visited: &mut HashSet<String>,
+) -> Result<Vec<PathBuf>> {
     // Group?
     if let Some(members) = cfg.groups.get(target) {
+        if !visited.insert(target.to_string()) {
+            anyhow::bail!("circular group reference: {target}");
+        }
         let mut out = Vec::new();
         for m in members {
-            out.extend(resolve_target(m, cfg, discovered)?);
+            out.extend(resolve_target_inner(m, cfg, discovered, visited)?);
         }
+        visited.remove(target);
         return Ok(out);
     }
     // Alias?

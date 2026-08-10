@@ -97,8 +97,9 @@ fn doctor_finds_git() {
 #[test]
 fn each_runs_shell() {
     let f = Fixture::with_repos(&["e"]);
+    // Cross-platform: avoid POSIX-only `pwd` (Windows `each` uses COMSPEC).
     f.gg()
-        .args(["each", "pwd"])
+        .args(["each", "git", "rev-parse", "--show-toplevel"])
         .assert()
         .success()
         .stdout(predicates::str::contains("e"));
@@ -390,6 +391,49 @@ elsewhere = "{elsewhere}"
         .assert()
         .success()
         .stdout(predicates::str::contains("elsewhere"));
+
+    // --tag reaches tagged aliases outside discovery universe (parity with -g/-i).
+    f.write_global_config(&format!(
+        r#"
+schema_version = 1
+root = "{root}"
+[aliases]
+local = "{local}"
+elsewhere = "{elsewhere}"
+[tags]
+remote = ["elsewhere"]
+"#,
+        root = Fixture::toml_path(f.root.path()),
+        local = Fixture::toml_path(&f.repos[0]),
+        elsewhere = Fixture::toml_path(&outside),
+    ));
+    f.gg()
+        .args([
+            "--root",
+            nested.to_str().unwrap(),
+            "--tag",
+            "remote",
+            "list",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("elsewhere"));
+
+    // Tag-only with out-of-universe alias: skipped counts discovered repos not
+    // selected (local under root), not universe_len - selected.len() (== 0).
+    f.gg()
+        .args([
+            "--root",
+            f.root.path().to_str().unwrap(),
+            "--tag",
+            "remote",
+            "list",
+            "--refresh",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("elsewhere"))
+        .stderr(predicates::str::contains("1 skipped"));
 }
 
 #[test]
