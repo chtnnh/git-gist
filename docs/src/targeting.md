@@ -11,7 +11,7 @@ Global flags are defined once on `gg` and apply to selection-based commands.
 | `-i` / `--in <TARGET>` | Include alias, path, group, basename, or glob (repeatable). An existing **directory** includes all discovered repos under that prefix. |
 | `-x` / `--exclude <TARGET>` | Exclude (repeatable). An existing **directory** excludes all selected repos under that prefix (not just an exact path match). |
 | `-g` / `--group <NAME>` | Select a named group |
-| `--tag <TAG>` | Filter by config tag |
+| `--tag <TAG>` | Select tagged aliases (same reachability as `-g` / `-i` — out-of-root tags are included). Combined with `-i`/`-g`, intersects. |
 | `--refresh` | Bypass discovery cache |
 | `--include-submodules` | Treat gitfile submodules as repos |
 
@@ -29,7 +29,7 @@ Status filters (probe each repo):
 | Flag | Effect |
 |------|--------|
 | `-j` / `--jobs` | Parallelism for passthrough, `each`, overview probes, and status filters |
-| `--fail-fast` | Stop scheduling more work after first failure (passthrough / `each`) |
+| `--fail-fast` | Stop scheduling more work after first failure (passthrough / `each`); skipped repos still appear in JSON with `skipped: true` |
 | `--dry-run` | Print planned actions; also honored by `update`, `hooks install`, `remotes` mutations, `init`/`scaffold`, `alias`/`group`/`config set`. For passthrough, put globals **before** the verb (`gg --dry-run status`, not `gg status --dry-run`). |
 | `-q` / `--quiet` | Suppress informational output; hides successful passthrough/`each` blocks |
 | `--timing` / `-v` | Per-repo timing on passthrough / `each` |
@@ -40,7 +40,7 @@ Status filters (probe each repo):
 
 ## Which commands use selection?
 
-**Yes** (discovery + filters): `overview`, `list`, `info`, `commits`, `worktrees`, `doctor` (without `--config`), `stale`, `each`, `sync`, `hooks install`, `remotes add-to`, git passthrough. When `-g` / `--tag` / `-i` / `-x` are set, human mode prints a selection summary on stderr.
+**Yes** (discovery + filters): `overview`, `list`, `info`, `commits`, `worktrees`, `doctor` (without `--config`), `stale`, `each`, `sync`, `hooks install`, `remotes add-to`, git passthrough. When `-g` / `--tag` / `-i` / `-x` are set, human mode prints a selection summary on stderr **after** status filters (`--only-*`), so the count matches what the command will operate on.
 
 **No** (ignore `--in` / `--root` / `only_*`): `update` (uses `auto_enroll` paths; enrollment also runs throttled during selection), `alias`, `group`, `tag`, `config`, `wizard`, `ui`, `hooks list`, `remotes list|add|remove|wizard|ui`, `doctor --config`, `init`/`scaffold`, `self-update`, `completions`, `man`, `version`.
 

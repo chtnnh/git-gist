@@ -24,6 +24,6 @@ We aim to acknowledge reports within 7 days.
 
 ## Hardening notes
 
-- `gg` shells out to `git` and `sh` for passthrough / `each` — treat repo paths and `each` commands as trusted input in your environment.
+- `gg` shells out to `git` for passthrough and to the platform shell for `each` (`sh -c` on Unix, `COMSPEC`/`cmd.exe /C` on Windows) — treat repo paths and `each` commands as trusted input in your environment.
 - Config is TOML loaded from the user config dir and project `.gg.toml`; do not place untrusted files there.
 - `self-update` does not silently overwrite your binary; prefer signed package installs (brew/deb/rpm/cargo-dist).

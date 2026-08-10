@@ -24,8 +24,8 @@ Default (no subcommand) runs `overview`.
 
 | Command | Purpose |
 |---------|---------|
-| `each <shell…>` | Run a shell command in each selected repo (`--dry-run`, `-j`, `--fail-fast`, `-q`) |
-| `sync [--pull]` | `git fetch --all --prune`; optional ff-only pull when clean and behind |
+| `each <shell…>` | Run a shell command in each selected repo (`--dry-run`, `-j`, `--fail-fast`, `-q`). Uses `sh -c` on Unix and `COMSPEC` / `cmd.exe /C` on Windows (POSIX-only scripts need Git Bash or WSL). |
+| `sync [--pull]` | `git fetch --all --prune`; optional ff-only pull when clean and behind. `--format json` emits a single array of sync rows (per-repo `fetch_ok`); it does not also dump raw fetch output. |
 | `update` | Force enroll from `[[auto_enroll]]` (`--dry-run`, `--prune-stale`, `--ask`); also runs automatically |
 
 ![`gg update --dry-run`](./images/update-dry-run.png)

@@ -108,7 +108,7 @@ Interactive config (wizard / TUI): see the [Interactive config](https://gg.chtnn
 | `commits -n` | Top-N commits |
 | `worktrees` | Worktree listing |
 | `doctor` / `doctor --config` | Health checks / config hygiene |
-| `each` | Run arbitrary shell in each repo |
+| `each` | Run arbitrary shell in each repo (`sh` / Windows `cmd`) |
 | `sync [--pull]` | Fetch (+ optional ff-only pull) |
 | `update` | Force enroll from `[[auto_enroll]]` (also runs automatically) |
 | `stale --days N` | Repos without recent commits |

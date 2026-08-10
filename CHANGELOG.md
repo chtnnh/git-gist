@@ -21,6 +21,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - README and user guide for `~/.git-gist/` layout and interactive config UX
+- `gg each` uses the platform shell (`sh -c` on Unix, `COMSPEC`/`cmd.exe /C` on Windows)
+- Auto-enroll throttle: time interval + rules-hash + watch-root mtime (not mtime alone)
+- Selection summary prints after `--only-*` status filters
+
+### Fixed
+- `gg sync --format json` emitted two JSON documents; now a single sync-row array with per-repo `fetch_ok`
+- `--tag` now reaches tagged aliases outside discovery depth/root (parity with `-g` / `-i`)
+- Circular group definitions error instead of stack overflowing
+- `--fail-fast` includes skipped repos in results/JSON instead of dropping them
+- Status filters warn on probe failures instead of silently dropping repos
+- Auto-enroll errors surface on stderr (and fail under `--refresh`) instead of being discarded
+- `path_prefix` matches Windows-style backslash prefixes
+- Config migration overwrites empty/`schema_version`-only stub dest when legacy config has content
+- `gg config edit` defaults to `notepad.exe` on Windows when `EDITOR`/`VISUAL` unset
+- `save_global` returns an error when home cannot be resolved instead of panicking
+- Selection summary `skipped` counts discovered-but-unselected repos (correct with out-of-universe tags)
+- Empty/blank `COMSPEC` falls back to `cmd.exe` for `gg each` on Windows
+- Discovery walk/`.ggignore` errors propagate instead of becoming an empty selection
+- Status-filter probes hard-fail on `git status` / `git stash list` errors (including combined `--only-*` flags)
 
 ### Planned
 - `--cwd` / default `--root .` when no config root for “just this folder” workflows
