@@ -107,6 +107,61 @@ fn repo_label_falls_back_to_absolute_when_relative_is_basename() {
 }
 
 #[test]
+fn combined_status_and_stash_filters_hard_fail_probe() {
+    let broken_dir = tempdir().unwrap();
+    let broken = Repo::new(broken_dir.path().to_path_buf());
+    let cli = Cli::try_parse_from(["gg", "--only-dirty", "--only-stashed", "list"]).unwrap();
+    let err = filters::apply_status_filters(vec![broken], &cli, Some(1)).unwrap_err();
+    assert!(
+        err.to_string().contains("all"),
+        "expected all-probe failure for combined filters, got {err}"
+    );
+}
+
+#[test]
+fn stash_only_filter_hard_fails_missing_repo() {
+    let broken_dir = tempdir().unwrap();
+    let broken = Repo::new(broken_dir.path().to_path_buf());
+    let cli = cli_flag("--only-stashed");
+    let err = filters::apply_status_filters(vec![broken], &cli, Some(1)).unwrap_err();
+    assert!(
+        err.to_string().contains("all"),
+        "expected stash probe failure, got {err}"
+    );
+}
+
+#[test]
+fn status_filters_empty_input() {
+    let cli = cli_flag("--only-dirty");
+    let filtered = filters::apply_status_filters(vec![], &cli, Some(1)).unwrap();
+    assert!(filtered.is_empty());
+}
+
+#[test]
+fn status_filters_exclude_probe_failures() {
+    let (_ok_dir, ok) = setup_repo(true);
+    let broken_dir = tempdir().unwrap();
+    // Not a git repo — probe_with returns Err and the path is excluded.
+    let broken = Repo::new(broken_dir.path().to_path_buf());
+    let cli = cli_flag("--only-clean");
+    let filtered = filters::apply_status_filters(vec![ok.clone(), broken], &cli, Some(1)).unwrap();
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].path, ok.path);
+}
+
+#[test]
+fn status_filters_err_when_all_probes_fail() {
+    let broken_dir = tempdir().unwrap();
+    let broken = Repo::new(broken_dir.path().to_path_buf());
+    let cli = cli_flag("--only-dirty");
+    let err = filters::apply_status_filters(vec![broken], &cli, Some(1)).unwrap_err();
+    assert!(
+        err.to_string().contains("all"),
+        "expected all-probe failure, got {err}"
+    );
+}
+
+#[test]
 #[serial]
 fn only_dirty_filter() {
     let (d1, clean) = setup_repo(true);

@@ -163,21 +163,38 @@ pub fn probe_status(repo: &Path) -> Result<RepoStatus> {
 
 pub fn probe_with(repo: &Path, opts: ProbeOpts) -> Result<RepoStatus> {
     let mut status = RepoStatus::default();
+    // Soft-fail for doctor/stale/full-style probes that gather optional extras.
+    // Hard-fail for filter-style probes (status and/or stash only) so
+    // `apply_status_filters` can warn instead of silently dropping repos.
+    let soft = opts.in_progress || opts.last_commit;
 
     if opts.status_branch {
         match git_stdout(repo, &["status", "--porcelain=v2", "--branch"]) {
             Ok(out) => apply_porcelain_v2(&mut status, &out),
-            Err(_) => status.branch = "(unknown)".into(),
+            Err(err) => {
+                if soft {
+                    status.branch = "(unknown)".into();
+                } else {
+                    return Err(err);
+                }
+            }
         }
     }
 
     if opts.stash {
-        if let Ok(out) = git_stdout(repo, &["stash", "list"]) {
-            status.stashed = if out.is_empty() {
-                0
-            } else {
-                out.lines().count() as u32
-            };
+        match git_stdout(repo, &["stash", "list"]) {
+            Ok(out) => {
+                status.stashed = if out.is_empty() {
+                    0
+                } else {
+                    out.lines().count() as u32
+                };
+            }
+            Err(err) => {
+                if !soft {
+                    return Err(err);
+                }
+            }
         }
     }
 
