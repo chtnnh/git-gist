@@ -90,6 +90,95 @@ fn sync_pull_when_behind() {
 }
 
 #[test]
+fn sync_pull_json_happy_when_fetch_succeeds() {
+    let f = Fixture::new();
+    let (bare, clone) = bare_and_clone(&f, "pullok");
+    let ws = f.root.path().join("ws-pullok");
+    fs::create_dir_all(&ws).unwrap();
+    let dest = ws.join("pullok");
+    fs::rename(&clone, &dest).unwrap();
+
+    let other = f.root.path().join("other-pullok");
+    Command::new("git")
+        .args(["clone", bare.to_str().unwrap(), other.to_str().unwrap()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    fs::write(other.join("more"), "x\n").unwrap();
+    git(&other, &["add", "more"]);
+    git(&other, &["commit", "-m", "ahead"]);
+    git(&other, &["push"]);
+
+    let output = f
+        .gg()
+        .current_dir(&ws)
+        .args(["--format", "json", "sync", "--pull"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rows: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row["fetch_ok"], true, "{row}");
+    assert_eq!(row["pulled"], true, "{row}");
+}
+
+#[test]
+fn sync_pull_skipped_when_fetch_fails() {
+    let f = Fixture::new();
+    let (bare, clone) = bare_and_clone(&f, "pullskip");
+    let ws = f.root.path().join("ws-pullskip");
+    fs::create_dir_all(&ws).unwrap();
+    let dest = ws.join("pullskip");
+    fs::rename(&clone, &dest).unwrap();
+
+    let other = f.root.path().join("other-pullskip");
+    Command::new("git")
+        .args(["clone", bare.to_str().unwrap(), other.to_str().unwrap()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    fs::write(other.join("more"), "x\n").unwrap();
+    git(&other, &["add", "more"]);
+    git(&other, &["commit", "-m", "ahead"]);
+    git(&other, &["push"]);
+
+    // Repo is behind upstream, but fetch will fail — pull must not run.
+    git(
+        &dest,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "https://invalid.invalid/git-gist-sync-test.git",
+        ],
+    );
+
+    let output = f
+        .gg()
+        .current_dir(&ws)
+        .args(["--format", "json", "sync", "--pull"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "sync should summarize even when fetch fails: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rows: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row["fetch_ok"], false, "{row}");
+    assert_eq!(row["pulled"], false, "{row}");
+}
+
+#[test]
 fn doctor_gitfile_and_in_progress_human() {
     let f = Fixture::with_repos(&["mainrepo"]);
     // create linked worktree → .git is a file in the worktree

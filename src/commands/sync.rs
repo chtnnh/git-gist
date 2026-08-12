@@ -67,12 +67,12 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
     let mut rows = Vec::new();
     for repo in repos {
         let status = repo::probe_status(&repo.path).unwrap_or_default();
+        let fetch_ok = fetch_by_path.get(&repo.path).copied().unwrap_or(false);
         let mut pulled = false;
-        if pull && !status.dirty && status.behind > 0 && status.ahead == 0 {
+        if should_ff_pull(pull, fetch_ok, &status) {
             let outp = repo::git_in(&repo.path, &["pull", "--ff-only"]);
             pulled = outp.map(|o| o.status.success()).unwrap_or(false);
         }
-        let fetch_ok = fetch_by_path.get(&repo.path).copied().unwrap_or(false);
         rows.push(SyncRow {
             name: repo.name.clone(),
             path: repo.display_path(),
@@ -114,4 +114,45 @@ pub fn run(repos: &[Repo], pull: bool, cli: &Cli, cfg: &Config, out: &mut Output
         .collect();
     out.print_table_cells(&["repo", "branch", "tree", "↑/↓", "pull"], table)?;
     Ok(())
+}
+
+fn should_ff_pull(pull: bool, fetch_ok: bool, status: &repo::RepoStatus) -> bool {
+    pull && fetch_ok && !status.dirty && status.behind > 0 && status.ahead == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repo::RepoStatus;
+
+    #[test]
+    fn ff_pull_requires_fetch_ok_and_clean_behind() {
+        let behind = RepoStatus {
+            dirty: false,
+            behind: 2,
+            ahead: 0,
+            ..Default::default()
+        };
+        assert!(should_ff_pull(true, true, &behind));
+        assert!(!should_ff_pull(true, false, &behind));
+        assert!(!should_ff_pull(false, true, &behind));
+        assert!(!should_ff_pull(
+            true,
+            true,
+            &RepoStatus {
+                dirty: true,
+                behind: 2,
+                ..Default::default()
+            }
+        ));
+        assert!(!should_ff_pull(
+            true,
+            true,
+            &RepoStatus {
+                behind: 0,
+                ahead: 1,
+                ..Default::default()
+            }
+        ));
+    }
 }
