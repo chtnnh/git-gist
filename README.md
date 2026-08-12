@@ -2,7 +2,7 @@
 
 **Run git across all child repositories — fast.**
 
-Current release: **1.2.0** · Docs: **https://gg.chtnnhfoundation.org/**
+Current release: **1.3.0** · Docs: **https://gg.chtnnhfoundation.org/**
 
 `gg` discovers git repos under a directory and runs git commands (or built-in insights) in parallel. One CLI for multi-checkout workspaces, client folders, and polyrepos.
 
@@ -176,13 +176,13 @@ Selection notes:
 - Selection flags apply to reporting and multi-repo commands (`ov`, `list`, `sync`, `each`, passthrough, …). Catalog/config commands (`alias`, `group`, `config`, `hooks list`, …) ignore them.
 - Put global flags **before** external git verbs (`gg --dry-run status`). Misplaced globals after the verb error with a hint.
 
-## What’s next (unreleased on `main`)
+## What’s in 1.3.0
 
 - Config lives in `~/.git-gist/`; interactive `wizard` / `ui` for aliases, groups, tags, remotes, auto-enroll
 - Automatic (throttled) auto-enroll; `gg update --prune-stale` / `gg alias prune` reclaim short names after moves
 - `path_prefix` on `[[auto_enroll]]`, selection summaries for `-g` / `--tag`, `gg doctor --config`
 
-Full notes: [CHANGELOG.md](CHANGELOG.md) (`[Unreleased]`).
+Full notes: [CHANGELOG.md](CHANGELOG.md). Planned follow-ups stay under `[Unreleased]`.
 
 ## Documentation
 

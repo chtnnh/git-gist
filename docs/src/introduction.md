@@ -2,7 +2,7 @@
 
 **git-gist** (`gg`) is a fast, cross-platform CLI that discovers git repositories under a root and runs git (or built-in insights) across them in parallel.
 
-Current release: **1.2.0**. User guide: [https://gg.chtnnhfoundation.org/](https://gg.chtnnhfoundation.org/).
+Current release: **1.3.0**. User guide: [https://gg.chtnnhfoundation.org/](https://gg.chtnnhfoundation.org/).
 
 Design pillars:
 
@@ -14,7 +14,7 @@ Design pillars:
 
 ![Overview for group `oss`](./images/overview-oss.png)
 
-## What’s next (unreleased)
+## What’s in 1.3.0
 
 - Config at `~/.git-gist/`; `gg config wizard` / `gg config ui` (+ scoped `wizard`/`ui` on alias/group/tag/remotes/enroll)
 - Automatic throttled auto-enroll; `path_prefix`; `gg alias prune` / `gg update --prune-stale`

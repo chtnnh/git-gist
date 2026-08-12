@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- `--cwd` / default `--root .` when no config root for “just this folder” workflows
+- `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel
+- `gg group sync` from discovery
+- Quiet overview / summary-only mode for large dirty trees
+- Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases
+
+## [1.3.0] - 2026-08-12
+
 ### Added
 - Canonical config/state dir: `~/.git-gist/` (`config.toml`, `discovery.json`, `state.json`) with one-time migration from XDG / Application Support
 - Interactive config: `gg config wizard` / `gg wizard` (`inquire`) and `gg config ui` / `gg ui` (`ratatui`); scoped `wizard`/`ui` on `alias`, `group`, `tag`, `remotes`, `config enroll`
@@ -18,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Programmatic unknown-key detection via edit distance (no hardcoded misspellings); clearer `gg update` empty-rules errors (includes config path)
 - Interactive config chapter + synthetic-repo screenshots (`scripts/docs-screenshots.py`)
 - `gg man --output` writes nested subcommand pages (`gg-alias.1`, `gg-config-enroll.1`, …) beside the root page
+- `tests/command_matrix.rs` — systematic happy/unhappy CLI coverage for every command/subcommand
 
 ### Changed
 - README and user guide for `~/.git-gist/` layout and interactive config UX
@@ -27,11 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `gg sync --format json` emitted two JSON documents; now a single sync-row array with per-repo `fetch_ok`
+- `gg sync --pull` no longer attempts `git pull --ff-only` when fetch failed for that repo
 - `--tag` now reaches tagged aliases outside discovery depth/root (parity with `-g` / `-i`)
 - Circular group definitions error instead of stack overflowing
 - `--fail-fast` includes skipped repos in results/JSON instead of dropping them
 - Status filters warn on probe failures instead of silently dropping repos
 - Auto-enroll errors surface on stderr (and fail under `--refresh`) instead of being discarded
+- Auto-enroll: `record_state` failure after a successful config save is a warning (config stays saved; in-memory cfg still reloads)
 - `path_prefix` matches Windows-style backslash prefixes
 - Config migration overwrites empty/`schema_version`-only stub dest when legacy config has content
 - `gg config edit` defaults to `notepad.exe` on Windows when `EDITOR`/`VISUAL` unset
@@ -40,13 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty/blank `COMSPEC` falls back to `cmd.exe` for `gg each` on Windows
 - Discovery walk/`.ggignore` errors propagate instead of becoming an empty selection
 - Status-filter probes hard-fail on `git status` / `git stash list` errors (including combined `--only-*` flags)
-
-### Planned
-- `--cwd` / default `--root .` when no config root for “just this folder” workflows
-- `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel
-- `gg group sync` from discovery
-- Quiet overview / summary-only mode for large dirty trees
-- Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases
 
 ## [1.2.0] - 2026-07-22
 
