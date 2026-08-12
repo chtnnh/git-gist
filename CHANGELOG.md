@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Docs site migrated from mdBook to Docusaurus (`website/`), same GitHub Pages host (`gg.chtnnhfoundation.org`)
+- crates.io package is an allowlist (`src/`, `tests/`, `shell/`, `examples/`, license/readme/changelog) — not `website/`, Workers, or CI
 - Docs versioning: default site serves latest released freeze; unreleased edits at `/head` (navbar **HEAD**). Freeze with `./scripts/docs-version.sh` before tagging; `.githooks/pre-push` can reject bare `v*` pushes
 
 ### Added

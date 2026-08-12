@@ -11,6 +11,16 @@ keywords = ["git", "cli", "multi-repo", "monorepo", "developer-tools"]
 categories = ["command-line-utilities", "development-tools"]
 authors = ["git-gist contributors"]
 rust-version = "1.75"
+# crates.io tarball: compile + `cargo test` + shell snippets. Not the docs site, CI, or Workers.
+include = [
+  "/src/**",
+  "/tests/**",
+  "/shell/**",
+  "/examples/**",
+  "/LICENSE",
+  "/README.md",
+  "/CHANGELOG.md",
+]
 
 [[bin]]
 name = "gg"
