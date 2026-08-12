@@ -1,0 +1,16 @@
+{
+  "docsSidebar": [
+    "intro",
+    "install",
+    "quickstart",
+    "config",
+    "interactive",
+    "commands",
+    "targeting",
+    "shell",
+    "packaging",
+    "cookbook",
+    "deprecation",
+    "hosting"
+  ]
+}

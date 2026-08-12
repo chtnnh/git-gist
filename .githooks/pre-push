@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Reject pushes of vX.Y.Z tags unless that docs version is frozen in website/.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Git has no pre-tag hook; this is the closest automated gate (pre-push).
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+zero="0000000000000000000000000000000000000000"
+
+fail() {
+  echo "error: $*" >&2
+  echo "Freeze docs before tagging: ./scripts/docs-version.sh <version> && commit" >&2
+  exit 1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v*)
+      # Deleting a tag
+      if [[ "$local_sha" == "$zero" ]]; then
+        continue
+      fi
+      tag="${remote_ref#refs/tags/}"
+      ver="${tag#v}"
+      if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+        continue
+      fi
+      if ! command -v jq >/dev/null 2>&1; then
+        fail "jq is required to verify docs versions when pushing tags"
+      fi
+      if ! git show "${local_sha}:website/versions.json" 2>/dev/null | jq -e --arg v "$ver" 'index($v) != null' >/dev/null; then
+        fail "pushing $tag but commit $local_sha does not list \"$ver\" in website/versions.json"
+      fi
+      ;;
+  esac
+done
+
+exit 0
