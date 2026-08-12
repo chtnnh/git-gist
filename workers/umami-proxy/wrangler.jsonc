@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gg-umami-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "gg.chtnnhfoundation.org/stats*",
+      "zone_name": "chtnnhfoundation.org"
+    }
+  ],
+  "vars": {
+    "UMAMI_ORIGIN": "https://umami.chtnnhfoundation.org"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

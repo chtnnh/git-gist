@@ -1,0 +1,7 @@
+# Dependencies / build
+/node_modules
+/.wrangler
+/dist
+*.tsbuildinfo
+.DS_Store
+.dev.vars
