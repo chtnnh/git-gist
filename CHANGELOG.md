@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docs versioning: default site serves latest released freeze; unreleased edits at `/head` (navbar **HEAD**). Freeze with `./scripts/docs-version.sh` before tagging; `.githooks/pre-push` can reject bare `v*` pushes
 
 ### Added
+- README status badges (GitHub release, CI, license, MSRV, docs) plus Made with Rust flair
 - Umami analytics on the docs site via build-time `UMAMI_WEBSITE_ID` (#6), first-party `/stats` proxy Worker (`workers/umami-proxy`)
 
 ### Planned

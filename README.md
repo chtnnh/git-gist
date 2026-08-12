@@ -1,5 +1,13 @@
 # git-gist (`gg`)
 
+[![Release](https://img.shields.io/github/v/release/chtnnh/git-gist)](https://github.com/chtnnh/git-gist/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/chtnnh/git-gist/ci.yml?branch=main)](https://github.com/chtnnh/git-gist/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/chtnnh/git-gist)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.75%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![Docs](https://img.shields.io/badge/docs-gg.chtnnhfoundation.org-0D9488)](https://gg.chtnnhfoundation.org/)
+
+[![Made with Rust](https://forthebadge.com/images/badges/made-with-rust.svg)](https://www.rust-lang.org)
+
 **Run git across all child repositories — fast.**
 
 Current release: **1.3.0** · Docs: **https://gg.chtnnhfoundation.org/**
