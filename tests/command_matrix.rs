@@ -669,9 +669,14 @@ fn unhappy_selection_include_missing() {
 
 #[test]
 fn unhappy_man_invalid_output_path() {
-    Fixture::new()
-        .gg()
-        .args(["man", "--output", "/dev/null/impossible/file.1"])
+    // Parent path is a regular file so create_dir_all must fail on every OS
+    // (`/dev/null/...` is creatable on Windows and is not a valid unhappy path).
+    let f = Fixture::new();
+    let blocker = f.root.path().join("not-a-dir");
+    fs::write(&blocker, "x").unwrap();
+    let bad = blocker.join("gg.1");
+    f.gg()
+        .args(["man", "--output", bad.to_str().unwrap()])
         .assert()
         .failure();
 }
