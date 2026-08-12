@@ -37,7 +37,7 @@ jobs:
           else
             echo "name=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.name }}
       - uses: dtolnay/rust-toolchain@stable
