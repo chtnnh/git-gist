@@ -266,3 +266,81 @@ fn unique_alias_numeric_suffix_and_sanitize() {
     assert!(name.starts_with("foo-") || name.contains("foo"));
     assert!(!used.contains(&name));
 }
+
+#[test]
+#[serial]
+fn apply_succeeds_when_record_state_blocked() {
+    let home = tempdir().unwrap();
+    let root = tempdir().unwrap();
+    set_test_home(home.path());
+
+    init_repo(&root.path().join("fresh"));
+
+    let cfg = Config {
+        path: Some(home.path().join(".git-gist/config.toml")),
+        root: Some(root.path().to_path_buf()),
+        auto_enroll: vec![AutoEnroll {
+            path: root.path().to_path_buf(),
+            path_prefix: None,
+            depth: 3,
+            groups: vec![],
+            tags: vec![],
+        }],
+        ..Config::default()
+    };
+    fs::create_dir_all(cfg.path.as_ref().unwrap().parent().unwrap()).unwrap();
+    // Block throttle state write while leaving config.toml writable.
+    fs::create_dir_all(home.path().join(".git-gist/state.json")).unwrap();
+
+    let report = auto_enroll::apply_auto_enroll(&cfg, false, false).unwrap();
+    assert!(report.saved.is_some(), "{report:?}");
+    assert!(
+        report.warnings.iter().any(|w| w.contains("throttle state")),
+        "{:?}",
+        report.warnings
+    );
+    assert!(!report.added.is_empty());
+
+    let reloaded = config::load(&Cli::try_parse_from(["gg", "list"]).unwrap()).unwrap();
+    assert!(reloaded.aliases.values().any(|p| p.ends_with("fresh")));
+}
+
+#[test]
+#[serial]
+fn maybe_auto_enroll_reloads_cfg_after_state_write_failure() {
+    let home = tempdir().unwrap();
+    let root = tempdir().unwrap();
+    set_test_home(home.path());
+
+    init_repo(&root.path().join("live"));
+
+    let mut cfg = Config {
+        path: Some(home.path().join(".git-gist/config.toml")),
+        root: Some(root.path().to_path_buf()),
+        auto_enroll: vec![AutoEnroll {
+            path: root.path().to_path_buf(),
+            path_prefix: None,
+            depth: 3,
+            groups: vec![],
+            tags: vec![],
+        }],
+        ..Config::default()
+    };
+    fs::create_dir_all(cfg.path.as_ref().unwrap().parent().unwrap()).unwrap();
+    config::save_global(&cfg).unwrap();
+    fs::create_dir_all(home.path().join(".git-gist/state.json")).unwrap();
+
+    assert!(cfg.aliases.is_empty());
+    let cli = Cli::try_parse_from(["gg", "list"]).unwrap();
+    let report = auto_enroll::maybe_auto_enroll(&mut cfg, &cli)
+        .unwrap()
+        .expect("expected enroll run");
+    assert!(report.saved.is_some());
+    assert!(
+        cfg.aliases
+            .values()
+            .any(|p| p.file_name().is_some_and(|n| n == "live")),
+        "cfg should reload new aliases in-memory: {:?}",
+        cfg.aliases
+    );
+}

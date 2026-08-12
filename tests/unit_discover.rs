@@ -207,7 +207,7 @@ fn select_repos_propagates_bad_ggignore() {
 
 #[test]
 #[serial]
-fn auto_enroll_errors_warn_without_refresh() {
+fn auto_enroll_throttle_failure_warns_and_continues() {
     use git_gist::config::AutoEnroll;
     use std::path::PathBuf;
 
@@ -220,7 +220,7 @@ fn auto_enroll_errors_warn_without_refresh() {
     std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
     std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
 
-    // Make ~/.git-gist a file so state writes fail during auto-enroll.
+    // Block throttle state writes; config saves to a separate writable path.
     fs::write(home.path().join(".git-gist"), "not-a-dir").unwrap();
 
     let prev = std::env::current_dir().unwrap();
@@ -238,15 +238,51 @@ fn auto_enroll_errors_warn_without_refresh() {
         path: Some(PathBuf::from("/tmp/unused-config.toml")),
         ..Config::default().with_builtins()
     };
-    // Soft: log and continue.
     let cli_soft = cli_from(&["list"]);
     assert!(discover::select_repos(&cli_soft, &mut cfg).is_ok());
-    // Forced: propagate Err.
+    // Throttle failure is non-fatal even when forced — config was persisted.
     let cli_force = cli_from(&["--refresh", "list"]);
-    let forced = discover::select_repos(&cli_force, &mut cfg);
+    assert!(discover::select_repos(&cli_force, &mut cfg).is_ok());
+
+    std::env::set_current_dir(prev).unwrap();
+}
+
+#[test]
+#[serial]
+fn auto_enroll_refresh_propagates_save_failure() {
+    use git_gist::config::AutoEnroll;
+
+    let root = tempdir().unwrap();
+    git_init(&root.path().join("a"));
+    let home = tempdir().unwrap();
+    std::env::set_var("GIT_GIST_HOME", home.path());
+    std::env::set_var("HOME", home.path());
+    std::env::set_var("USERPROFILE", home.path());
+    std::env::set_var("XDG_CONFIG_HOME", home.path().join("config"));
+    std::env::set_var("XDG_CACHE_HOME", home.path().join("cache"));
+
+    let prev = std::env::current_dir().unwrap();
+    std::env::set_current_dir(root.path()).unwrap();
+
+    let bad_config = root.path().join("config-is-dir");
+    fs::create_dir_all(&bad_config).unwrap();
+
+    let mut cfg = Config {
+        depth: 3,
+        auto_enroll: vec![AutoEnroll {
+            path: root.path().to_path_buf(),
+            path_prefix: None,
+            depth: 2,
+            groups: vec![],
+            tags: vec![],
+        }],
+        path: Some(bad_config),
+        ..Config::default().with_builtins()
+    };
+    let cli_force = cli_from(&["--refresh", "list"]);
     assert!(
-        forced.is_err(),
-        "expected auto-enroll error under --refresh"
+        discover::select_repos(&cli_force, &mut cfg).is_err(),
+        "expected save failure to propagate under --refresh"
     );
 
     std::env::set_current_dir(prev).unwrap();

@@ -171,10 +171,17 @@ pub fn apply_auto_enroll(cfg: &Config, dry_run: bool, prune_stale: bool) -> Resu
     let dirty = !added.is_empty() || membership_fixed > 0 || !pruned_stale.is_empty();
     let saved = if !dry_run && dirty {
         let path = config::save_global(&updated)?;
-        record_state(cfg)?;
+        if let Err(err) = record_state(cfg) {
+            warnings.push(format!(
+                "saved config to {} but failed to record enroll throttle state: {err:#}",
+                path.display()
+            ));
+        }
         Some(path.display().to_string())
     } else if !dry_run && !dirty {
-        record_state(cfg)?;
+        if let Err(err) = record_state(cfg) {
+            warnings.push(format!("failed to record enroll throttle state: {err:#}"));
+        }
         None
     } else {
         None
