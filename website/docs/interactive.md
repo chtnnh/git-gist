@@ -128,7 +128,7 @@ After aliases/groups are set, filters behave as expected — human mode prints a
 
 ## Regenerating screenshots
 
-Screenshots in `docs/src/images/` are produced from **synthetic** repos (not a developer’s real tree):
+Screenshots in `website/docs/images/` are produced from **synthetic** repos (not a developer’s real tree):
 
 ```bash
 cargo build --release

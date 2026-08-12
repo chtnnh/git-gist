@@ -65,4 +65,4 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 irm https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-installer.ps1 | iex
 ```
 
-Full operator guide: [Packaging](./packaging.md) and [`packaging/README.md`](../../packaging/README.md).
+Full operator guide: [Packaging](./packaging) and [`packaging/README.md`](https://github.com/chtnnh/git-gist/blob/main/packaging/README.md).

@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docs site migrated from mdBook to Docusaurus (`website/`), same GitHub Pages host (`gg.chtnnhfoundation.org`)
+- Docs versioning: default site serves latest released freeze; unreleased edits at `/head` (navbar **HEAD**). Freeze with `./scripts/docs-version.sh` before tagging; `.githooks/pre-push` can reject bare `v*` pushes
+
+### Added
+- Umami analytics on the docs site via build-time `UMAMI_WEBSITE_ID` (#6), first-party `/stats` proxy Worker (`workers/umami-proxy`)
+
 ### Planned
-- `--cwd` / default `--root .` when no config root for “just this folder” workflows
-- `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel
-- `gg group sync` from discovery
-- Quiet overview / summary-only mode for large dirty trees
-- Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases
+- `--cwd` / default `--root .` when no config root for “just this folder” workflows (#1)
+- `--under <path>` sugar for directory include; optional globals-after-verb via `--` sentinel (#2)
+- `gg group sync` from discovery (#3)
+- Quiet overview / summary-only mode for large dirty trees (#4)
+- Publish matching crates.io version so `cargo install git-gist` tracks GitHub releases (#5)
 
 ## [1.3.0] - 2026-08-12
 

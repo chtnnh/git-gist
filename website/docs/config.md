@@ -35,7 +35,7 @@ CLI overrides for one invocation: `--root`, `--depth`, `-j`, `--theme`, `--inclu
 
 ## Interactive config UX
 
-Prefer the wizard or TUI when exploring or bulk-editing. Full walkthrough (keybindings, scoped commands, screenshots): **[Interactive config](./interactive.md)**.
+Prefer the wizard or TUI when exploring or bulk-editing. Full walkthrough (keybindings, scoped commands, screenshots): **[Interactive config](./interactive)**.
 
 ```bash
 gg config wizard    # or: gg wizard

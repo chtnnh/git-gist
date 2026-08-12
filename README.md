@@ -26,7 +26,7 @@ gg --show-path ov
 gg commits -n 10
 ```
 
-![`gg -g oss ov` — overview for a group](docs/src/images/overview-oss.png)
+![`gg -g oss ov` — overview for a group](website/docs/images/overview-oss.png)
 
 ## Install
 
@@ -96,7 +96,7 @@ Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 
 Interactive config (wizard / TUI): see the [Interactive config](https://gg.chtnnhfoundation.org/interactive.html) chapter.
 
-![`gg config wizard` — interactive config hub](docs/src/images/config-wizard.png)
+![`gg config wizard` — interactive config hub](website/docs/images/config-wizard.png)
 
 ## Built-in commands
 
@@ -187,7 +187,7 @@ Full notes: [CHANGELOG.md](CHANGELOG.md). Planned follow-ups stay under `[Unrele
 ## Documentation
 
 - Online: https://gg.chtnnhfoundation.org/
-- Source: [`docs/`](docs/) (mdBook). Local: `mdbook serve docs --open`
+- Source: [`website/`](website/) (Docusaurus). Local: `cd website && npm install && npm start`
 - Before commit/push: `./scripts/ci.sh`
 
 ## License

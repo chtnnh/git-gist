@@ -9,5 +9,4 @@
 .vscode/
 *.pdb
 .direnv/
-/docs/book/
 .know-code/

@@ -1,3 +1,8 @@
+---
+slug: /
+sidebar_position: 1
+---
+
 # Introduction
 
 **git-gist** (`gg`) is a fast, cross-platform CLI that discovers git repositories under a root and runs git (or built-in insights) across them in parallel.
@@ -20,19 +25,19 @@ Design pillars:
 - Automatic throttled auto-enroll; `path_prefix`; `gg alias prune` / `gg update --prune-stale`
 - `gg doctor --config`, selection summaries for `-g` / `--tag`
 
-See [Configuration](./config.md), [Interactive config](./interactive.md) (wizard / TUI + screenshots), and [Install](./install.md).
+See [Configuration](./config), [Interactive config](./interactive) (wizard / TUI + screenshots), and [Install](./install).
 
 ## What’s in 1.2.0
 
 - Faster status probes and `--only-*` filters (fewer git spawns; maintainers: `benches/PROBE_PERF.md`)
 - `show_path` / `--show-path` — human tables print `name (path)`
 - Selection fixes: depth-aware under-root aliases, directory `--exclude`/`--in`, clearer passthrough flag-order errors
-- mdBook docs, `./scripts/ci.sh`, and reproducible `scripts/bench.py`
+- User guide on GitHub Pages, `./scripts/ci.sh`, and reproducible `scripts/bench.py`
 
-See [Install](./install.md) for Homebrew upgrade / `PATH` shadowing notes, and [Targeting & flags](./targeting.md) for selection behavior.
+See [Install](./install) for Homebrew upgrade / `PATH` shadowing notes, and [Targeting & flags](./targeting) for selection behavior.
 
 ## What’s in 1.1.0
 
 - Semantic colors in `overview` / `sync` / `stale` tables (tree, age, ahead/behind)
 - `[[auto_enroll]]` + `gg update` to enroll new repos into aliases / groups / tags
-- Correct `--root` / selection / `--dry-run` behavior across commands (see [Targeting & flags](./targeting.md))
+- Correct `--root` / selection / `--dry-run` behavior across commands (see [Targeting & flags](./targeting))

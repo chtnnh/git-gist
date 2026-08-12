@@ -38,12 +38,12 @@ Default (no subcommand) runs `overview`.
 |---------|---------|
 | `alias` / `group` / `tag` | Manage aliases, groups, tags (`prune`, `member`, `wizard`, `ui`) |
 | `config` | `show` / `path` / `get` / `set` / `edit` / `enroll` / `wizard` / `ui` |
-| `wizard` / `ui` | Interactive config hub ([walkthrough](./interactive.md)) |
+| `wizard` / `ui` | Interactive config hub ([walkthrough](./interactive)) |
 | `remotes` | Catalog + `add-to` + `wizard` / `ui` |
 | `hooks` | List packs / `install` into selection |
 | `init` / `scaffold` | Create a repo from a profile |
 
-Selection flags do **not** apply to catalog-only subcommands (`alias list`, `config show`, `hooks list`, …). See [Targeting & flags](./targeting.md).
+Selection flags do **not** apply to catalog-only subcommands (`alias list`, `config show`, `hooks list`, …). See [Targeting & flags](./targeting).
 
 ## Meta
 

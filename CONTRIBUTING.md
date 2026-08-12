@@ -31,9 +31,10 @@ Line coverage must stay **≥ 95%** (enforced in CI via `./scripts/ci.sh` / `./s
 - Prefer small, focused PRs aligned with the version roadmap in the README / docs.
 - Passthrough must shell out to `git` on `PATH` — do not reimplement porcelain.
 - Add/extend tests under `tests/` for CLI behavior.
-- Update `CHANGELOG.md` **and** user-facing docs (`README.md`, `docs/src/…`) for user-visible changes.
+- Update `CHANGELOG.md` **and** user-facing docs (`README.md`, `website/docs/…`) for user-visible changes.
 - Keep reserved builtin names documented when adding commands.
-- Preview the book with `mdbook serve docs --open` when editing guide pages.
+- Preview the guide with `cd website && npm start` when editing guide pages.
+- Docs default to the latest **released** freeze; edit `website/docs/` for HEAD (`/head`). Before tagging: `./scripts/docs-version.sh`. Optional: `git config core.hooksPath .githooks`.
 
 ## Commit style
 
