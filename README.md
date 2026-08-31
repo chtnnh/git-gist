@@ -155,7 +155,7 @@ web = "/Users/you/src/web"
 work = ["api", "web"]
 
 [remotes]
-origin-template = "git@github.com:org/NAME.git"
+origin-template = "git@github.com:org/{name}.git"
 
 [profiles.default]
 default_branch = "main"
@@ -168,6 +168,11 @@ path_prefix = "learning/"
 depth = 6
 tags = ["learning"]
 ```
+
+Remote catalog values may be complete URLs, `{name}` / `{repo}` templates, or
+`user@host:path` SSH prefixes ending in `/` or `:`. `gg remotes add-to` and
+`gg init` expand templates and SSH prefixes using the repository directory name;
+complete URLs and local paths stay literal.
 
 ## Global flags
 

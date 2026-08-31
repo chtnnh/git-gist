@@ -52,7 +52,7 @@ pub fn run(
             Ok(())
         }
         RemotesAction::AddTo { name, as_name } => {
-            let url = cfg
+            let spec = cfg
                 .remotes
                 .get(name)
                 .with_context(|| format!("catalog remote not found: {name}"))?
@@ -61,7 +61,23 @@ pub fn run(
             if repos.is_empty() {
                 bail!("no repositories selected");
             }
-            for repo in repos {
+            crate::repo::validate_remote_name(remote_name)?;
+
+            // Expand every URL before changing any repository. A malformed
+            // template must not leave a partially updated selection behind.
+            let resolved: Vec<_> = repos
+                .iter()
+                .map(|repo| {
+                    let repo_name = if crate::remote_url::requires_repository_name(&spec)? {
+                        Some(crate::remote_url::repository_name(&repo.path)?)
+                    } else {
+                        None
+                    };
+                    crate::remote_url::resolve_remote_url(&spec, repo_name).map(|url| (repo, url))
+                })
+                .collect::<Result<_>>()?;
+            let mut failures = 0usize;
+            for (repo, url) in resolved {
                 if cli.dry_run {
                     out.info(&format!(
                         "dry-run: would add remote {remote_name} → {url} in {}",
@@ -83,12 +99,16 @@ pub fn run(
                     if status.success() {
                         out.success(&format!("{}: updated remote {remote_name}", repo.name))?;
                     } else {
+                        failures += 1;
                         out.warn(&format!(
                             "{}: failed to add remote {remote_name}",
                             repo.name
                         ))?;
                     }
                 }
+            }
+            if failures > 0 {
+                bail!("failed to apply remote {remote_name} to {failures} repository(s)");
             }
             Ok(())
         }
