@@ -465,9 +465,10 @@ fn install_pack(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use super::git_path_from_output;
     use super::{
-        apply_settings, git_metadata_path, git_path_from_output, install_pack,
-        remove_created_directories, FileJournal,
+        apply_settings, git_metadata_path, install_pack, remove_created_directories, FileJournal,
     };
     use crate::config::{HookPack, ScaffoldProfile};
     use std::collections::BTreeMap;
