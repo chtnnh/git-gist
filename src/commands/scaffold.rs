@@ -4,21 +4,76 @@ use crate::output::OutputCtx;
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 pub fn init(
     profile_name: Option<&str>,
+    mode: InitMode,
     path: Option<&Path>,
     cli: &Cli,
     cfg: &Config,
     out: &mut OutputCtx,
+    overrides: InitOverrides<'_>,
 ) -> Result<()> {
+    init_with_mode(profile_name, mode, path, cli, cfg, out, overrides)
+}
+
+#[derive(Clone, Copy)]
+pub struct InitMode {
+    pub yes: bool,
+    pub interactive: bool,
+    pub allow_interactive: bool,
+}
+
+#[derive(Clone, Copy)]
+pub struct InitOverrides<'a> {
+    pub hooks: &'a [String],
+    pub no_hooks: bool,
+    pub remotes: &'a [String],
+}
+
+fn init_with_mode(
+    profile_name: Option<&str>,
+    mode: InitMode,
+    path: Option<&Path>,
+    cli: &Cli,
+    cfg: &Config,
+    out: &mut OutputCtx,
+    overrides: InitOverrides<'_>,
+) -> Result<()> {
+    if let Some(name) = profile_name {
+        cfg.profiles
+            .get(name)
+            .with_context(|| format!("unknown profile: {name}"))?;
+    }
+    if mode.allow_interactive
+        && (mode.interactive
+            || (!mode.yes
+                && overrides.hooks.is_empty()
+                && !overrides.no_hooks
+                && overrides.remotes.is_empty()
+                && std::io::stdin().is_terminal()
+                && std::io::stderr().is_terminal()))
+    {
+        return interactive_init(profile_name, path, cli, cfg, out);
+    }
     let name = profile_name.unwrap_or("default");
-    let profile = cfg
+    let mut profile = cfg
         .profiles
         .get(name)
         .with_context(|| format!("unknown profile: {name}"))?
         .clone();
+    if overrides.no_hooks {
+        profile.hooks.clear();
+    } else if !overrides.hooks.is_empty() {
+        profile.hooks = overrides.hooks.to_vec();
+    }
+    for hook in &profile.hooks {
+        if !cfg.hook_packs.contains_key(hook) {
+            bail!("unknown hook pack: {hook}");
+        }
+    }
 
     let requested_target = path
         .map(PathBuf::from)
@@ -27,8 +82,26 @@ pub fn init(
 
     // Resolve the complete remote set before creating the directory or running
     // `git init`, so malformed templates fail without partial scaffolding.
-    let resolved_remotes: Vec<_> = profile
-        .remotes
+    let use_catalog_defaults = mode.yes
+        || (!mode.interactive
+            && (!std::io::stdin().is_terminal() || !std::io::stderr().is_terminal()));
+    let remote_specs = if !overrides.remotes.is_empty() {
+        overrides
+            .remotes
+            .iter()
+            .map(|name| {
+                cfg.remotes
+                    .get(name)
+                    .map(|value| (name.clone(), value.clone()))
+                    .with_context(|| format!("unknown remote catalog entry: {name}"))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?
+    } else if use_catalog_defaults && profile.remotes.is_empty() {
+        cfg.remotes.clone()
+    } else {
+        profile.remotes.clone()
+    };
+    let resolved_remotes: Vec<_> = remote_specs
         .iter()
         .map(|(remote_name, value)| {
             crate::repo::validate_remote_name(remote_name)?;
@@ -120,6 +193,9 @@ pub fn init(
     }
 
     let file_result = (|| -> Result<()> {
+        if let Some(readme) = &profile.readme {
+            files.write(target.join("README.md"), readme)?;
+        }
         if let Some(gitignore) = &profile.gitignore {
             files.write(target.join(".gitignore"), gitignore)?;
         }
@@ -189,6 +265,125 @@ pub fn init(
         requested_target.display()
     ))?;
     Ok(())
+}
+
+#[cfg(coverage)]
+fn interactive_init(
+    _: Option<&str>,
+    _: Option<&Path>,
+    _: &Cli,
+    _: &Config,
+    out: &mut OutputCtx,
+) -> Result<()> {
+    out.info("interactive UI skipped under coverage")
+}
+
+#[cfg(all(not(coverage), feature = "wizard"))]
+fn interactive_init(
+    profile_name: Option<&str>,
+    path: Option<&Path>,
+    cli: &Cli,
+    cfg: &Config,
+    out: &mut OutputCtx,
+) -> Result<()> {
+    use inquire::{Confirm, MultiSelect, Select};
+
+    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+        bail!("--interactive requires an interactive terminal; use --yes in scripts");
+    }
+    if out.is_json() {
+        bail!("--interactive is incompatible with JSON output");
+    }
+    let names: Vec<_> = cfg.profiles.keys().cloned().collect();
+    let initial = profile_name.unwrap_or("default");
+    let selected_name = Select::new("Scaffold profile", names)
+        .with_starting_cursor(
+            cfg.profiles
+                .keys()
+                .position(|name| name == initial)
+                .unwrap_or(0),
+        )
+        .prompt()?;
+    let mut interactive_cfg = cfg.clone();
+    let profile = interactive_cfg
+        .profiles
+        .get_mut(&selected_name)
+        .context("selected scaffold profile disappeared")?;
+    let hook_names: Vec<_> = cfg.hook_packs.keys().cloned().collect();
+    let selected_hook_indexes: Vec<_> = hook_names
+        .iter()
+        .enumerate()
+        .filter_map(|(index, name)| profile.hooks.contains(name).then_some(index))
+        .collect();
+    profile.hooks = MultiSelect::new("Hook packs", hook_names)
+        .with_default(&selected_hook_indexes)
+        .prompt()?;
+    let include_catalog_remotes = !cfg.remotes.is_empty()
+        && Confirm::new("Add catalog remotes?")
+            .with_default(profile.remotes.is_empty())
+            .prompt()?;
+    if include_catalog_remotes {
+        let selected =
+            MultiSelect::new("Catalog remotes", cfg.remotes.keys().cloned().collect()).prompt()?;
+        profile.remotes.extend(
+            selected
+                .into_iter()
+                .filter_map(|name| cfg.remotes.get(&name).map(|value| (name, value.clone())))
+                .collect::<BTreeMap<_, _>>(),
+        );
+    }
+    if !Confirm::new("Create README.md?")
+        .with_default(profile.readme.is_some())
+        .prompt()?
+    {
+        profile.readme = None;
+    } else if profile.readme.is_none() {
+        profile.readme = Some("# README\n".into());
+    }
+    if !Confirm::new("Create LICENSE?")
+        .with_default(profile.license.is_some())
+        .prompt()?
+    {
+        profile.license = None;
+    } else if profile.license.is_none() {
+        profile.license = Some("All rights reserved.\n".into());
+    }
+    if !Confirm::new("Create .gitignore?")
+        .with_default(profile.gitignore.is_some())
+        .prompt()?
+    {
+        profile.gitignore = None;
+    } else if profile.gitignore.is_none() {
+        profile.gitignore = Some(String::new());
+    }
+    init_with_mode(
+        Some(&selected_name),
+        InitMode {
+            yes: false,
+            interactive: false,
+            allow_interactive: false,
+        },
+        path,
+        cli,
+        &interactive_cfg,
+        out,
+        InitOverrides {
+            hooks: &[],
+            no_hooks: false,
+            remotes: &[],
+        },
+    )
+}
+
+#[cfg(all(not(coverage), not(feature = "wizard")))]
+fn interactive_init(
+    _: Option<&str>,
+    _: Option<&Path>,
+    _: &Cli,
+    _: &Config,
+    _: &mut OutputCtx,
+) -> Result<()> {
+    bail!("wizard feature disabled — rebuild with --features wizard or use --yes")
 }
 
 fn rollback_remote_setup(
@@ -451,7 +646,22 @@ fn install_pack(
     files.create_dir_all(&hooks_dir)?;
     for (name, body) in &pack.hooks {
         let path = hooks_dir.join(name);
-        files.write(path.clone(), body)?;
+        let contents = if name == "pre-commit" && path.exists() {
+            let previous = fs::read_to_string(&path).context("read existing scaffold hook")?;
+            format!(
+                "#!/bin/sh\nset -e\n{}\n{}\n",
+                previous
+                    .strip_prefix("#!/bin/sh\n")
+                    .unwrap_or(&previous)
+                    .trim_end()
+                    .strip_suffix("exit 0")
+                    .unwrap_or_else(|| previous.trim_end()),
+                body.strip_prefix("#!/bin/sh\n").unwrap_or(body)
+            )
+        } else {
+            body.clone()
+        };
+        files.write(path.clone(), &contents)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
