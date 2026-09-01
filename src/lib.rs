@@ -157,12 +157,56 @@ fn run_without_selection(cli: &Cli, cfg: &config::Config, out: &mut OutputCtx) -
         Some(Commands::Tag { action }) => commands::tag::run(action, cli, cfg, out),
         Some(Commands::Wizard) => interactive::hub(cli, cfg, out),
         Some(Commands::Ui) => interactive::ui_hub(cli, cfg, out),
-        Some(Commands::Init { profile, path }) => {
-            commands::scaffold::init(profile.as_deref(), path.as_deref(), cli, cfg, out)
-        }
-        Some(Commands::Scaffold { profile, path }) => {
-            commands::scaffold::init(profile.as_deref(), path.as_deref(), cli, cfg, out)
-        }
+        Some(Commands::Init {
+            profile,
+            yes,
+            interactive,
+            hooks,
+            no_hooks,
+            remote,
+            path,
+        }) => commands::scaffold::init(
+            profile.as_deref(),
+            commands::scaffold::InitMode {
+                yes: *yes,
+                interactive: *interactive,
+                allow_interactive: true,
+            },
+            path.as_deref(),
+            cli,
+            cfg,
+            out,
+            commands::scaffold::InitOverrides {
+                hooks,
+                no_hooks: *no_hooks,
+                remotes: remote,
+            },
+        ),
+        Some(Commands::Scaffold {
+            profile,
+            yes,
+            interactive,
+            hooks,
+            no_hooks,
+            remote,
+            path,
+        }) => commands::scaffold::init(
+            profile.as_deref(),
+            commands::scaffold::InitMode {
+                yes: *yes,
+                interactive: *interactive,
+                allow_interactive: true,
+            },
+            path.as_deref(),
+            cli,
+            cfg,
+            out,
+            commands::scaffold::InitOverrides {
+                hooks,
+                no_hooks: *no_hooks,
+                remotes: remote,
+            },
+        ),
         Some(Commands::SelfUpdate) => commands::self_update::run(out),
         Some(Commands::Hooks { action }) => commands::hooks::run(action, &[], cli, cfg, out),
         Some(Commands::Remotes { action }) => commands::remotes::run(action, &[], cli, cfg, out),

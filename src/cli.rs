@@ -202,6 +202,18 @@ pub enum Commands {
     Init {
         #[arg(long, value_name = "NAME")]
         profile: Option<String>,
+        /// Apply profile defaults without prompting
+        #[arg(short = 'y', long, conflicts_with = "interactive")]
+        yes: bool,
+        /// Select scaffold options interactively
+        #[arg(long, conflicts_with = "yes")]
+        interactive: bool,
+        #[arg(long, value_name = "PACK", conflicts_with = "interactive")]
+        hooks: Vec<String>,
+        #[arg(long, conflicts_with_all = ["hooks", "interactive"])]
+        no_hooks: bool,
+        #[arg(long, value_name = "CATALOG", conflicts_with = "interactive")]
+        remote: Vec<String>,
         #[arg(value_name = "PATH")]
         path: Option<PathBuf>,
     },
@@ -210,6 +222,16 @@ pub enum Commands {
     Scaffold {
         #[arg(long, value_name = "NAME")]
         profile: Option<String>,
+        #[arg(short = 'y', long, conflicts_with = "interactive")]
+        yes: bool,
+        #[arg(long, conflicts_with = "yes")]
+        interactive: bool,
+        #[arg(long, value_name = "PACK", conflicts_with = "interactive")]
+        hooks: Vec<String>,
+        #[arg(long, conflicts_with_all = ["hooks", "interactive"])]
+        no_hooks: bool,
+        #[arg(long, value_name = "CATALOG", conflicts_with = "interactive")]
+        remote: Vec<String>,
         #[arg(value_name = "PATH")]
         path: Option<PathBuf>,
     },

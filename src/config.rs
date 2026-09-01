@@ -73,6 +73,7 @@ pub struct ScaffoldProfile {
     pub remotes: BTreeMap<String, String>,
     #[serde(default)]
     pub hooks: Vec<String>,
+    pub readme: Option<String>,
     pub gitignore: Option<String>,
     pub license: Option<String>,
 }
@@ -162,6 +163,22 @@ impl Config {
                     hooks: msg,
                 },
             );
+            for (name, command) in [
+                ("rust", "cargo fmt --check"),
+                ("node", "npm test"),
+                ("python", "python -m pytest"),
+            ] {
+                self.hook_packs.insert(
+                    name.into(),
+                    HookPack {
+                        description: Some(format!("Run {name} checks before commit")),
+                        hooks: BTreeMap::from([(
+                            "pre-commit".into(),
+                            format!("#!/bin/sh\n{command}\n"),
+                        )]),
+                    },
+                );
+            }
         }
         self
     }
@@ -361,6 +378,7 @@ const KNOWN_PROFILE_FIELDS: &[&str] = &[
     "user_name",
     "user_email",
     "default_branch",
+    "readme",
     "remotes",
     "hooks",
     "gitignore",

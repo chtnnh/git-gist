@@ -22,6 +22,9 @@ fn with_builtins_adds_default_profile_and_hooks() {
     assert!(cfg.profiles.contains_key("default"));
     assert!(cfg.hook_packs.contains_key("noop"));
     assert!(cfg.hook_packs.contains_key("commit-msg-required"));
+    assert!(cfg.hook_packs.contains_key("rust"));
+    assert!(cfg.hook_packs.contains_key("node"));
+    assert!(cfg.hook_packs.contains_key("python"));
 }
 
 #[test]

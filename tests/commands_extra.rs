@@ -91,6 +91,195 @@ origin = "https://example.com/rich.git"
 }
 
 #[test]
+fn init_yes_uses_catalog_remotes_when_profile_omits_remotes() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.minimal]
+gitignore = "target/\n"
+
+[remotes]
+origin = "https://example.test/{name}.git"
+"#,
+    );
+    let target = f.root.path().join("catalog-repo");
+
+    f.gg()
+        .args([
+            "init",
+            "--yes",
+            "--profile",
+            "minimal",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let remote = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert!(remote.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&remote.stdout).trim(),
+        "https://example.test/catalog-repo.git"
+    );
+}
+
+#[test]
+fn init_yes_accepts_hook_and_remote_overrides() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forge = "https://example.test/{name}.git"
+"#,
+    );
+    let target = f.root.path().join("overrides");
+
+    f.gg()
+        .args([
+            "init",
+            "--yes",
+            "--hooks",
+            "noop",
+            "--remote",
+            "forge",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(target.join(".git/hooks/pre-commit").is_file());
+    assert_eq!(
+        String::from_utf8_lossy(
+            &Command::new("git")
+                .args(["remote", "get-url", "forge"])
+                .current_dir(&target)
+                .output()
+                .unwrap()
+                .stdout
+        )
+        .trim(),
+        "https://example.test/overrides.git"
+    );
+}
+
+#[test]
+fn init_yes_no_hooks_overrides_profile_hooks() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.hooked]
+hooks = ["noop"]
+"#,
+    );
+    let target = f.root.path().join("without-hooks");
+
+    f.gg()
+        .args([
+            "init",
+            "--yes",
+            "--profile",
+            "hooked",
+            "--no-hooks",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(!target.join(".git/hooks/pre-commit").exists());
+}
+
+#[test]
+fn init_combines_multiple_pre_commit_hook_packs() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.combined]
+hooks = ["node", "noop", "rust"]
+"#,
+    );
+    let target = f.root.path().join("combined-hooks");
+    f.gg()
+        .args([
+            "init",
+            "--yes",
+            "--profile",
+            "combined",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let hook = fs::read_to_string(target.join(".git/hooks/pre-commit")).unwrap();
+    assert!(hook.contains("cargo fmt --check"));
+    assert!(hook.contains("npm test"));
+}
+
+#[test]
+fn init_rejects_yes_with_interactive() {
+    let f = Fixture::new();
+
+    f.gg()
+        .args(["init", "--yes", "--interactive"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("cannot be used with"));
+}
+
+#[cfg(not(coverage))]
+#[test]
+fn init_interactive_requires_tty() {
+    let f = Fixture::new();
+
+    f.gg()
+        .args(["init", "--interactive"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("interactive terminal"));
+}
+
+#[test]
+fn init_yes_writes_profile_readme() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.documented]
+readme = "# Documented\n"
+"##,
+    );
+    let target = f.root.path().join("documented-repo");
+
+    f.gg()
+        .args([
+            "init",
+            "--yes",
+            "--profile",
+            "documented",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(target.join("README.md")).unwrap(),
+        "# Documented\n"
+    );
+}
+
+#[test]
 fn init_restores_scaffold_files_and_remotes_when_hook_installation_fails() {
     let f = Fixture::new();
     f.write_global_config(
@@ -1875,6 +2064,7 @@ fn interactive_entrypoints_under_coverage() {
         &["remotes", "ui"],
         &["config", "enroll", "wizard"],
         &["config", "enroll", "ui"],
+        &["init", "--interactive"],
     ] {
         f.gg().args(args.iter().copied()).assert().success();
     }
