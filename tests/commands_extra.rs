@@ -132,6 +132,76 @@ origin = "https://example.test/team/origin.git"
     assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
 }
 
+#[test]
+fn init_removes_new_nested_target_after_scaffold_hook_failure() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.failing]
+gitignore = "generated\n"
+hooks = ["broken"]
+
+[hook_packs.broken.hooks]
+"nested/pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let target = f.root.path().join("new").join("nested").join("repo");
+
+    f.gg()
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure();
+
+    assert!(!target.exists());
+    assert!(!f.root.path().join("new").exists());
+}
+
+#[test]
+fn init_installs_profile_hooks_in_repository_git_dir_not_global_hooks_path() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.hooks]
+hooks = ["pack"]
+
+[hook_packs.pack.hooks]
+"pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let global_git_config = f.root.path().join("gitconfig");
+    let shared_hooks = f.root.path().join("shared-hooks");
+    let status = Command::new("git")
+        .args([
+            "config",
+            "--file",
+            global_git_config.to_str().unwrap(),
+            "core.hooksPath",
+            shared_hooks.to_str().unwrap(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let target = f.root.path().join("repo");
+
+    f.gg()
+        .env("GIT_CONFIG_GLOBAL", &global_git_config)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .args(["init", "--profile", "hooks", target.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert!(target
+        .join(".git")
+        .join("hooks")
+        .join("pre-commit")
+        .is_file());
+    assert!(!shared_hooks.join("pre-commit").exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn init_failure_removes_directories_created_for_a_nested_target() {

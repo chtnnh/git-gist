@@ -105,17 +105,14 @@ pub fn init(
             let rollback = rollback_remote_setup(
                 &target,
                 &added_remotes,
+                files,
                 !git_dir_existed,
                 created_directory_boundary.as_deref(),
             );
-            let restore = files.restore();
             if let Err(rollback) = rollback {
                 return Err(rollback).context(format!(
                     "{err:#}; rollback of remotes added by this init also failed"
                 ));
-            }
-            if let Err(restore) = restore {
-                return Err(restore).context(format!("{err:#}; file rollback also failed"));
             }
             return Err(err);
         }
@@ -144,15 +141,12 @@ pub fn init(
         let rollback = rollback_remote_setup(
             &target,
             &added_remotes,
+            files,
             !git_dir_existed,
             created_directory_boundary.as_deref(),
         );
-        let restore = files.restore();
         if let Err(rollback) = rollback {
             return Err(rollback).context(format!("{err:#}; remote rollback also failed"));
-        }
-        if let Err(restore) = restore {
-            return Err(restore).context(format!("{err:#}; file rollback also failed"));
         }
         return Err(err);
     }
@@ -166,15 +160,12 @@ pub fn init(
         let rollback = rollback_remote_setup(
             &target,
             &added_remotes,
+            files,
             !git_dir_existed,
             created_directory_boundary.as_deref(),
         );
-        let restore = files.restore();
         if let Err(rollback) = rollback {
             return Err(rollback).context(format!("{err:#}; remote rollback also failed"));
-        }
-        if let Err(restore) = restore {
-            return Err(restore).context(format!("{err:#}; file rollback also failed"));
         }
         return Err(err);
     }
@@ -183,15 +174,12 @@ pub fn init(
         let rollback = rollback_remote_setup(
             &target,
             &added_remotes,
+            files,
             !git_dir_existed,
             created_directory_boundary.as_deref(),
         );
-        let restore = files.restore();
         if let Err(rollback) = rollback {
             return Err(rollback).context(format!("{err:#}; remote rollback also failed"));
-        }
-        if let Err(restore) = restore {
-            return Err(restore).context(format!("{err:#}; file rollback also failed"));
         }
         return Err(err);
     }
@@ -206,6 +194,7 @@ pub fn init(
 fn rollback_remote_setup(
     target: &Path,
     remote_names: &[&str],
+    files: FileJournal,
     remove_created_git_dir: bool,
     created_directory_boundary: Option<&Path>,
 ) -> Result<()> {
@@ -222,6 +211,9 @@ fn rollback_remote_setup(
             )),
             Err(err) => failures.push(format!("git remote remove during rollback: {err}")),
         }
+    }
+    if let Err(err) = files.restore() {
+        failures.push(format!("file rollback: {err:#}"));
     }
     if remove_created_git_dir {
         if let Err(err) = remove_new_git_dir(target) {
@@ -411,12 +403,51 @@ fn git_metadata_path(target: &Path, name: &str) -> Result<PathBuf> {
     })
 }
 
+fn git_common_dir_path(target: &Path) -> Result<PathBuf> {
+    let output = crate::repo::git_command()
+        .args(["rev-parse", "--git-common-dir"])
+        .current_dir(target)
+        .output()
+        .context("resolve common git directory")?;
+    if !output.status.success() {
+        bail!("failed to resolve common git directory");
+    }
+    git_path_from_output(target, output.stdout, "common git directory")
+}
+
+#[cfg(unix)]
+fn git_path_from_output(target: &Path, mut output: Vec<u8>, _kind: &str) -> Result<PathBuf> {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    if output.last() == Some(&b'\n') {
+        output.pop();
+    }
+    let path = PathBuf::from(OsString::from_vec(output));
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        target.join(path)
+    })
+}
+
+#[cfg(not(unix))]
+fn git_path_from_output(target: &Path, output: Vec<u8>, kind: &str) -> Result<PathBuf> {
+    let value = String::from_utf8(output).with_context(|| format!("{kind} must be UTF-8"))?;
+    let path = PathBuf::from(value.trim());
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        target.join(path)
+    })
+}
+
 fn install_pack(
     repo: &Path,
     pack: &crate::config::HookPack,
     files: &mut FileJournal,
 ) -> Result<()> {
-    let hooks_dir = git_metadata_path(repo, "hooks")?;
+    let hooks_dir = git_common_dir_path(repo)?.join("hooks");
     files.create_dir_all(&hooks_dir)?;
     for (name, body) in &pack.hooks {
         let path = hooks_dir.join(name);
@@ -434,8 +465,12 @@ fn install_pack(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_settings, git_metadata_path, remove_created_directories, FileJournal};
-    use crate::config::ScaffoldProfile;
+    use super::{
+        apply_settings, git_metadata_path, git_path_from_output, install_pack,
+        remove_created_directories, FileJournal,
+    };
+    use crate::config::{HookPack, ScaffoldProfile};
+    use std::collections::BTreeMap;
     use std::fs;
     use std::process::Command;
     use tempfile::tempdir;
@@ -472,6 +507,58 @@ mod tests {
         apply_settings(dir.path(), &profile).unwrap();
         assert!(git_metadata_path(dir.path(), "HEAD").unwrap().is_file());
         assert!(git_metadata_path(dir.path(), "config").unwrap().is_file());
+    }
+
+    #[test]
+    fn installs_hooks_in_the_common_git_dir_for_a_linked_worktree() {
+        let dir = tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        let worktree = dir.path().join("worktree");
+        fs::create_dir(&repo).unwrap();
+        for args in [
+            vec!["init", "-b", "main"],
+            vec!["commit", "--allow-empty", "-m", "initial"],
+            vec![
+                "worktree",
+                "add",
+                "-b",
+                "feature",
+                worktree.to_str().unwrap(),
+            ],
+        ] {
+            assert!(Command::new("git")
+                .args(args)
+                .current_dir(&repo)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.test")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.test")
+                .status()
+                .unwrap()
+                .success());
+        }
+        let pack = HookPack {
+            hooks: BTreeMap::from([("pre-commit".into(), "#!/bin/sh\nexit 0\n".into())]),
+            ..Default::default()
+        };
+
+        install_pack(&worktree, &pack, &mut FileJournal::default()).unwrap();
+
+        assert!(repo.join(".git").join("hooks").join("pre-commit").is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_non_utf8_git_path_output() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let dir = tempdir().unwrap();
+        let path = git_path_from_output(dir.path(), b"hooks-\xff\n".to_vec(), "hooks").unwrap();
+        assert_eq!(
+            path,
+            dir.path().join(OsString::from_vec(b"hooks-\xff".to_vec()))
+        );
     }
 
     #[test]
