@@ -33,6 +33,30 @@ gg doctor --config
 
 CLI overrides for one invocation: `--root`, `--depth`, `-j`, `--theme`, `--include-submodules`, `--show-path`.
 
+## Remote catalog templates
+
+`[remotes]` entries are reusable specifications for `gg remotes add-to` and
+profile-backed `gg init`. They resolve against the target repository directory
+name:
+
+```toml
+[remotes]
+github = "git@github.com:chtnnh/"              # -> git@github.com:chtnnh/my-repo.git
+forgejo = "git@forgejo:chtnnh/{name}.git"      # -> git@forgejo:chtnnh/my-repo.git
+mirror = "https://example.test/team/{repo}"    # -> https://example.test/team/my-repo
+fixed = "https://example.test/team/shared.git" # stays literal
+
+[profiles.rust.remotes]
+origin = "github" # catalog key lookup, then expansion
+```
+
+Only `{name}` and `{repo}` are valid placeholders. A `user@host:path` SSH value
+ending in `/` or `:` is a prefix and receives `<repo>.git`; URI and local-path
+values are always literal, including a trailing slash. Any other value is also a
+complete literal URL.
+Malformed templates fail before `gg init` creates a directory or a remote command
+changes a selected repository.
+
 ## Interactive config UX
 
 Prefer the wizard or TUI when exploring or bulk-editing. Full walkthrough (keybindings, scoped commands, screenshots): **[Interactive config](./interactive)**.

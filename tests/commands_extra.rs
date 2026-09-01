@@ -91,6 +91,310 @@ origin = "https://example.com/rich.git"
 }
 
 #[test]
+fn init_restores_scaffold_files_and_remotes_when_hook_installation_fails() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.failing]
+gitignore = "generated\n"
+license = "new license\n"
+hooks = ["broken"]
+
+[profiles.failing.remotes]
+origin = "https://example.test/team/origin.git"
+
+[hook_packs.broken.hooks]
+"nested/pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let target = f.root.path().join("existing");
+    fs::create_dir_all(&target).unwrap();
+    git(&target, &["init", "-b", "main"]);
+    fs::write(target.join(".gitignore"), "original\n").unwrap();
+
+    f.gg()
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure();
+
+    assert_eq!(
+        fs::read_to_string(target.join(".gitignore")).unwrap(),
+        "original\n"
+    );
+    assert!(!target.join("LICENSE").exists());
+    let remotes = Command::new("git")
+        .args(["remote"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
+}
+
+#[test]
+fn init_removes_new_nested_target_after_scaffold_hook_failure() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.failing]
+gitignore = "generated\n"
+hooks = ["broken"]
+
+[hook_packs.broken.hooks]
+"nested/pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let target = f.root.path().join("new").join("nested").join("repo");
+
+    f.gg()
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure();
+
+    assert!(!target.exists());
+    assert!(!f.root.path().join("new").exists());
+}
+
+#[test]
+fn init_installs_profile_hooks_in_repository_git_dir_not_global_hooks_path() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.hooks]
+hooks = ["pack"]
+
+[hook_packs.pack.hooks]
+"pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let global_git_config = f.root.path().join("gitconfig");
+    let shared_hooks = f.root.path().join("shared-hooks");
+    let status = Command::new("git")
+        .args([
+            "config",
+            "--file",
+            global_git_config.to_str().unwrap(),
+            "core.hooksPath",
+            shared_hooks.to_str().unwrap(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let target = f.root.path().join("repo");
+
+    f.gg()
+        .env("GIT_CONFIG_GLOBAL", &global_git_config)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .args(["init", "--profile", "hooks", target.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert!(target
+        .join(".git")
+        .join("hooks")
+        .join("pre-commit")
+        .is_file());
+    assert!(!shared_hooks.join("pre-commit").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_failure_removes_directories_created_for_a_nested_target() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\n[ \"$1\" = init ] && exit 1\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let target = f.root.path().join("new").join("nested").join("repo");
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("git init failed"));
+    assert!(!f.root.path().join("new").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_failure_after_creating_git_metadata_removes_a_new_target() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nif [ \"$1\" = init ]; then git \"$@\"; exit 1; fi\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let target = f.root.path().join("must-not-exist");
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("git init failed"));
+    assert!(!target.exists());
+}
+
+#[test]
+fn init_spawn_failure_removes_directories_created_for_a_nested_target() {
+    let f = Fixture::new();
+    let target = f.root.path().join("new").join("nested").join("repo");
+
+    f.gg()
+        .env("GIT_GIST_GIT", "/does-not-exist/git")
+        .args(["init", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("git init"));
+    assert!(!f.root.path().join("new").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_restores_settings_when_a_later_setting_fails() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.settings]
+default_branch = "trunk"
+user_name = "Changed"
+user_email = "changed@example.test"
+
+[profiles.settings.remotes]
+origin = "https://example.test/team/origin.git"
+"#,
+    );
+    let target = f.root.path().join("existing");
+    fs::create_dir_all(&target).unwrap();
+    git(&target, &["init", "-b", "main"]);
+    git(&target, &["config", "user.name", "Original"]);
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\n[ \"$1:$2\" = config:user.email ] && exit 1\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", "--profile", "settings", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("scaffold git setting"));
+
+    let branch = Command::new("git")
+        .args(["symbolic-ref", "--short", "HEAD"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&branch.stdout).trim(), "main");
+    let user = Command::new("git")
+        .args(["config", "--local", "--get", "user.name"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&user.stdout).trim(), "Original");
+}
+
+#[cfg(unix)]
+#[test]
+fn init_restores_existing_hook_permissions_when_a_later_hook_fails() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r##"
+schema_version = 1
+
+[profiles.hooks]
+hooks = ["broken"]
+
+[hook_packs.broken.hooks]
+"pre-commit" = "#!/bin/sh\nexit 0\n"
+"nested/pre-commit" = "#!/bin/sh\nexit 0\n"
+"##,
+    );
+    let target = f.root.path().join("existing");
+    fs::create_dir_all(&target).unwrap();
+    git(&target, &["init", "-b", "main"]);
+    let hook = target.join(".git").join("hooks").join("pre-commit");
+    fs::write(&hook, "original\n").unwrap();
+    let mut permissions = fs::metadata(&hook).unwrap().permissions();
+    permissions.set_mode(0o644);
+    fs::set_permissions(&hook, permissions).unwrap();
+
+    f.gg()
+        .args(["init", "--profile", "hooks", target.to_str().unwrap()])
+        .assert()
+        .failure();
+
+    let mode = fs::metadata(&hook).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o644);
+    assert_eq!(fs::read_to_string(hook).unwrap(), "original\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn init_continues_cleanup_when_remote_rollback_fails() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.failing.remotes]
+first = "https://example.test/team/first.git"
+second = "https://example.test/team/second.git"
+"#,
+    );
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\ncase \"$1:$2:$3\" in\n  remote:add:second|remote:remove:*) exit 1 ;;\nesac\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let target = f.root.path().join("must-not-exist");
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("rollback failed"));
+    assert!(!target.exists());
+}
+
+#[test]
 fn sync_real_fetch_json() {
     let f = Fixture::with_repos(&["local"]);
     let output = f.gg().args(["--format", "json", "sync"]).output().unwrap();
@@ -247,6 +551,586 @@ fn remotes_add_to_updates_existing() {
         .assert()
         .success();
     f.gg().args(["remotes", "add-to", "up"]).assert().success();
+}
+
+#[test]
+fn remotes_expand_catalog_prefixes_and_profile_catalog_keys() {
+    let f = Fixture::with_repos(&["existing"]);
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+
+    f.gg()
+        .args(["remotes", "add-to", "forgejo"])
+        .assert()
+        .success();
+    let existing_url = std::process::Command::new("git")
+        .args(["remote", "get-url", "forgejo"])
+        .current_dir(&f.repos[0])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&existing_url.stdout).trim(),
+        "git@forgejo:chtnnh/existing.git"
+    );
+
+    let target = f.root.path().join("new-project");
+    f.gg()
+        .args(["init", "--profile", "rust", target.to_str().unwrap()])
+        .assert()
+        .success();
+    let init_url = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&init_url.stdout).trim(),
+        "git@forgejo:chtnnh/new-project.git"
+    );
+}
+
+#[test]
+fn malformed_remote_templates_fail_before_mutating_repositories() {
+    let f = Fixture::with_repos(&["existing"]);
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+broken = "git@forgejo:chtnnh/{project}.git"
+
+[profiles.broken.remotes]
+origin = "broken"
+"#,
+    );
+
+    f.gg()
+        .args(["remotes", "add-to", "broken"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("supported placeholders"));
+    let remotes = std::process::Command::new("git")
+        .args(["remote"])
+        .current_dir(&f.repos[0])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
+
+    let target = f.root.path().join("must-not-exist");
+    f.gg()
+        .args(["init", "--profile", "broken", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("supported placeholders"));
+    assert!(
+        !target.exists(),
+        "template validation must happen before creating an init target"
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn remote_templates_reject_non_utf8_repository_names_before_mutation() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+
+    let existing = f
+        .root
+        .path()
+        .join(OsString::from_vec(b"existing-\xff".to_vec()));
+    fs::create_dir_all(&existing).unwrap();
+    git(&existing, &["init", "-b", "main"]);
+    f.gg()
+        .args(["remotes", "add-to", "forgejo"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("UTF-8"));
+    let remotes = std::process::Command::new("git")
+        .args(["remote"])
+        .current_dir(&existing)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
+
+    let target = f
+        .root
+        .path()
+        .join(OsString::from_vec(b"new-project-\xff".to_vec()));
+    let mut init = f.gg();
+    init.args(["init", "--profile", "rust"])
+        .arg(&target)
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("UTF-8"));
+    assert!(!target.exists());
+}
+
+#[test]
+fn init_dot_expands_remote_templates_using_the_current_directory_name() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+
+    f.gg()
+        .args(["init", "--profile", "rust", "."])
+        .assert()
+        .success();
+    let url = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(f.root.path())
+        .output()
+        .unwrap();
+    let expected = format!(
+        "git@forgejo:chtnnh/{}.git",
+        f.root.path().file_name().unwrap().to_str().unwrap()
+    );
+    assert_eq!(String::from_utf8_lossy(&url.stdout).trim(), expected);
+}
+
+#[test]
+fn init_normalizes_nonexistent_parent_components_before_expanding_remotes() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+    let target = f.root.path().join("fresh").join("..");
+
+    f.gg()
+        .args(["init", "--profile", "rust", target.to_str().unwrap()])
+        .assert()
+        .success();
+    let url = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(f.root.path())
+        .output()
+        .unwrap();
+    let expected = format!(
+        "git@forgejo:chtnnh/{}.git",
+        f.root.path().file_name().unwrap().to_str().unwrap()
+    );
+    assert_eq!(String::from_utf8_lossy(&url.stdout).trim(), expected);
+}
+
+#[cfg(unix)]
+#[test]
+fn init_resolves_existing_symlink_targets_before_expanding_remotes() {
+    use std::os::unix::fs::symlink;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+    let actual_parent = f.root.path().join("actual-parent");
+    let actual_target = actual_parent.join("actual-target");
+    fs::create_dir_all(&actual_target).unwrap();
+    symlink(&actual_target, f.root.path().join("link")).unwrap();
+
+    f.gg()
+        .args(["init", "--profile", "rust", "link/.."])
+        .assert()
+        .success();
+
+    let url = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(&actual_parent)
+        .output()
+        .unwrap();
+    let expected = format!(
+        "git@forgejo:chtnnh/{}.git",
+        actual_parent.file_name().unwrap().to_str().unwrap()
+    );
+    assert_eq!(String::from_utf8_lossy(&url.stdout).trim(), expected);
+}
+
+#[cfg(unix)]
+#[test]
+fn init_resolves_symlink_prefixes_when_the_full_target_does_not_exist() {
+    use std::os::unix::fs::symlink;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.rust.remotes]
+origin = "forgejo"
+"#,
+    );
+    let actual_parent = f.root.path().join("actual-parent");
+    let actual_target = actual_parent.join("actual-target");
+    fs::create_dir_all(&actual_target).unwrap();
+    symlink(&actual_target, f.root.path().join("link")).unwrap();
+
+    f.gg()
+        .args(["init", "--profile", "rust", "link/missing/.."])
+        .assert()
+        .success();
+
+    let url = std::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(&actual_target)
+        .output()
+        .unwrap();
+    let expected = format!(
+        "git@forgejo:chtnnh/{}.git",
+        actual_target.file_name().unwrap().to_str().unwrap()
+    );
+    assert_eq!(String::from_utf8_lossy(&url.stdout).trim(), expected);
+}
+
+#[test]
+fn init_rolls_back_remotes_added_before_a_later_remote_fails() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.rollback]
+default_branch = "trunk"
+user_name = "Changed by failed init"
+
+[profiles.rollback.remotes]
+first = "https://example.test/team/first.git"
+second = "https://example.test/team/second.git"
+"#,
+    );
+    let target = f.root.path().join("existing");
+    fs::create_dir_all(&target).unwrap();
+    git(&target, &["init", "-b", "main"]);
+    git(
+        &target,
+        &[
+            "remote",
+            "add",
+            "second",
+            "https://example.test/existing.git",
+        ],
+    );
+
+    f.gg()
+        .args(["init", "--profile", "rollback", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("failed to add remote second"));
+
+    let remotes = std::process::Command::new("git")
+        .args(["remote"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&remotes.stdout).trim(), "second");
+    let branch = std::process::Command::new("git")
+        .args(["symbolic-ref", "--short", "HEAD"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&branch.stdout).trim(), "main");
+    let user_name = std::process::Command::new("git")
+        .args(["config", "--local", "--get", "user.name"])
+        .current_dir(&target)
+        .output()
+        .unwrap();
+    assert!(!user_name.status.success());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_removes_a_new_target_when_remote_setup_fails() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.failing.remotes]
+origin = "https://example.test/team/origin.git"
+"#,
+    );
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\ncase \"$1\" in\n  remote) [ \"$2\" = add ] && exit 1 ;;\nesac\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let target = f.root.path().join("must-not-exist");
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("failed to add remote origin"));
+    assert!(!target.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_removes_empty_parent_directories_created_for_a_nested_target_on_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.failing.remotes]
+origin = "https://example.test/team/origin.git"
+"#,
+    );
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\ncase \"$1\" in\n  remote) [ \"$2\" = add ] && exit 1 ;;\nesac\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let target = f.root.path().join("created").join("nested").join("repo");
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", "--profile", "failing", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("failed to add remote origin"));
+    assert!(!f.root.path().join("created").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn init_failure_does_not_delete_a_symlink_target_or_leave_intermediate_directories() {
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[profiles.failing.remotes]
+origin = "https://example.test/team/origin.git"
+"#,
+    );
+    let actual_target = f.root.path().join("actual-target");
+    fs::create_dir_all(&actual_target).unwrap();
+    symlink(&actual_target, f.root.path().join("link")).unwrap();
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\ncase \"$1\" in\n  remote) [ \"$2\" = add ] && exit 1 ;;\nesac\nexec git \"$@\"\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["init", "--profile", "failing", "link/missing/.."])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("failed to add remote origin"));
+
+    assert!(actual_target.is_dir());
+    assert!(!actual_target.join(".git").exists());
+    assert!(!actual_target.join("missing").exists());
+}
+
+#[test]
+fn invalid_remote_names_fail_before_init_creates_a_target() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.invalid.remotes]
+origin = "forgejo"
+"bad name" = "forgejo"
+"#,
+    );
+    let target = f.root.path().join("must-not-exist");
+
+    f.gg()
+        .args(["init", "--profile", "invalid", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("invalid remote name"));
+    assert!(!target.exists());
+}
+
+#[test]
+fn option_like_remote_names_fail_before_init_creates_a_target() {
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+
+[profiles.invalid.remotes]
+"-t" = "forgejo"
+"#,
+    );
+    let target = f.root.path().join("must-not-exist");
+
+    f.gg()
+        .args(["init", "--profile", "invalid", target.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("invalid remote name"));
+    assert!(!target.exists());
+
+    let existing = f.root.path().join("existing");
+    fs::create_dir_all(&existing).unwrap();
+    git(&existing, &["init", "-b", "main"]);
+    f.gg()
+        .args(["remotes", "add-to", "forgejo", "--as-name=-t"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("invalid remote name"));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn literal_remote_catalogs_do_not_require_utf8_repository_names() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let f = Fixture::new();
+    f.write_global_config(
+        r#"
+schema_version = 1
+[remotes]
+fixed = "https://example.test/team/shared.git"
+"#,
+    );
+    let repo = f
+        .root
+        .path()
+        .join(OsString::from_vec(b"existing-\xff".to_vec()));
+    fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-b", "main"]);
+
+    f.gg()
+        .args(["remotes", "add-to", "fixed"])
+        .assert()
+        .success();
+    let url = std::process::Command::new("git")
+        .args(["remote", "get-url", "fixed"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&url.stdout).trim(),
+        "https://example.test/team/shared.git"
+    );
+}
+
+#[test]
+fn remote_application_failures_return_nonzero() {
+    let f = Fixture::with_repos(&["repo"]);
+    f.write_global_config(
+        r#"
+schema_version = 1
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+"#,
+    );
+
+    f.gg()
+        .args(["remotes", "add-to", "forgejo", "--as-name", "bad name"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("invalid remote name"));
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_application_failures_return_nonzero_after_preflight() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let f = Fixture::with_repos(&["repo"]);
+    f.write_global_config(
+        r#"
+schema_version = 1
+[remotes]
+forgejo = "git@forgejo:chtnnh/"
+"#,
+    );
+    let fake_git = f.root.path().join("fake-git.sh");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\ncase \"$1\" in\n  check-ref-format) exit 0 ;;\n  remote) exit 1 ;;\n  *) exec git \"$@\" ;;\nesac\n",
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+
+    f.gg()
+        .env("GIT_GIST_GIT", &fake_git)
+        .args(["remotes", "add-to", "forgejo"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("failed to apply remote"));
 }
 
 #[test]

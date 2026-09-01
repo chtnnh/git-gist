@@ -81,6 +81,17 @@ gg init --profile default ./payments-api
 gg --dry-run init --profile default ./scratch
 ```
 
+Use a remote catalog prefix or template when the repository name should be filled
+in automatically:
+
+```toml
+[remotes]
+github = "git@github.com:chtnnh/"
+
+[profiles.default.remotes]
+origin = "github"
+```
+
 ## Passthrough dry-run (flags before the verb)
 
 ```bash

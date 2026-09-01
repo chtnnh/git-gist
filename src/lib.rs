@@ -10,6 +10,7 @@ pub mod exec;
 pub mod filters;
 pub mod interactive;
 pub mod output;
+pub mod remote_url;
 pub mod repo;
 pub mod tui;
 pub mod wizard;

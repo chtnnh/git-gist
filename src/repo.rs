@@ -1,6 +1,6 @@
 //! Repository model and lightweight git probes via shelling out to git.
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,6 +10,25 @@ use std::process::Command;
 pub fn git_command() -> Command {
     let bin = std::env::var("GIT_GIST_GIT").unwrap_or_else(|_| "git".to_string());
     Command::new(bin)
+}
+
+/// Check a remote name with Git's ref-name rules before changing a repository.
+pub fn validate_remote_name(name: &str) -> Result<()> {
+    if name.trim().is_empty() {
+        bail!("invalid remote name: must not be empty");
+    }
+    if name.starts_with('-') {
+        bail!("invalid remote name: must not start with '-'");
+    }
+    let ref_name = format!("refs/remotes/{name}");
+    let output = git_command()
+        .args(["check-ref-format", "--allow-onelevel", &ref_name])
+        .output()
+        .context("git check-ref-format")?;
+    if !output.status.success() {
+        bail!("invalid remote name: {name}");
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize)]
