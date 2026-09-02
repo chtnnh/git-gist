@@ -1786,6 +1786,299 @@ g = ["gone", "missing-alias"]
 }
 
 #[test]
+fn doctor_reports_shell_gg_collisions_and_renders_safe_setup() {
+    let f = Fixture::new();
+    fs::write(
+        f.home.path().join(".bash_login"),
+        "alias ll='ls -l' gg='git gui'\n",
+    )
+    .unwrap();
+    fs::write(
+        f.home.path().join(".zprofile"),
+        "alias -g -- gg='git gui'\n",
+    )
+    .unwrap();
+    let fish_config = f.home.path().join("config/fish/conf.d/gg.fish");
+    fs::create_dir_all(fish_config.parent().unwrap()).unwrap();
+    fs::write(&fish_config, "abbr --add --position command gg 'git gui'\n").unwrap();
+
+    for (shell, remediation) in [
+        ("bash", "unalias gg"),
+        ("zsh", "unalias 'gg'"),
+        ("fish", "abbr --erase -- 'gg'"),
+    ] {
+        f.gg()
+            .args(["doctor", "--shell", shell])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("gg collision"))
+            .stdout(predicates::str::contains(remediation));
+    }
+
+    f.gg()
+        .args(["doctor", "--shell", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("global alias"));
+
+    f.gg()
+        .args(["doctor", "--shell", "bash", "--setup"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("alias gg"))
+        .stdout(predicates::str::contains("does not overwrite"));
+
+    f.gg()
+        .args(["doctor", "--shell", "fish", "--setup"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("complete -c gg"));
+}
+
+#[test]
+fn doctor_reports_function_and_fish_alias_collisions_and_empty_startup_files() {
+    let empty = Fixture::new();
+    for shell in ["bash", "zsh", "fish"] {
+        empty
+            .gg()
+            .args(["doctor", "--shell", shell])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("no persisted gg collision found"));
+    }
+
+    let bash = Fixture::new();
+    fs::write(bash.home.path().join(".bashrc"), "function gg { :; }\n").unwrap();
+    bash.gg()
+        .args(["doctor", "--shell", "bash"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(function)"))
+        .stdout(predicates::str::contains("unset -f gg"));
+
+    let zsh = Fixture::new();
+    let zdotdir = zsh.home.path().join("zdotdir");
+    fs::create_dir_all(&zdotdir).unwrap();
+    fs::write(zdotdir.join(".zshrc"), "gg() { :; }\n").unwrap();
+    zsh.gg()
+        .env("ZDOTDIR", &zdotdir)
+        .args(["doctor", "--shell", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(function)"))
+        .stdout(predicates::str::contains("unfunction gg"));
+
+    let fish = Fixture::new();
+    let fish_config = fish.home.path().join("config/fish/config.fish");
+    fs::create_dir_all(fish_config.parent().unwrap()).unwrap();
+    fs::write(&fish_config, "alias gg 'git gui'\n").unwrap();
+    fish.gg()
+        .args(["doctor", "--shell", "fish"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(alias)"))
+        .stdout(predicates::str::contains("functions -e gg"));
+
+    fs::write(&fish_config, "function gg; end\n").unwrap();
+    fish.gg()
+        .args(["doctor", "--shell", "fish"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(function)"))
+        .stdout(predicates::str::contains("functions -e gg"));
+}
+
+#[test]
+fn doctor_reads_a_non_exported_zdotdir_from_zshenv() {
+    let f = Fixture::new();
+    fs::write(
+        f.home.path().join(".zshenv"),
+        "ZDOTDIR=\"${XDG_CONFIG_HOME:-$HOME/.config}/zsh\"\n",
+    )
+    .unwrap();
+    let zshrc = f.home.path().join("config/zsh/.zshrc");
+    fs::create_dir_all(zshrc.parent().unwrap()).unwrap();
+    fs::write(&zshrc, "alias gg='git gui'\n").unwrap();
+
+    f.gg()
+        .args(["doctor", "--shell", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("gg collision"))
+        .stdout(predicates::str::contains("unalias 'gg'"));
+}
+
+#[test]
+fn doctor_uses_the_shell_home_and_active_bash_login_file() {
+    let f = Fixture::new();
+    let shell_home = f.root.path().join("shell-home");
+    fs::create_dir_all(&shell_home).unwrap();
+    fs::write(shell_home.join(".bashrc"), "alias gg='git gui'\n").unwrap();
+    fs::write(shell_home.join(".bash_profile"), "alias ll='ls -l'\n").unwrap();
+    fs::write(shell_home.join(".bash_login"), "alias gg='git gui'\n").unwrap();
+
+    f.gg()
+        .env("HOME", &shell_home)
+        .env("USERPROFILE", &shell_home)
+        .args(["doctor", "--shell", "bash"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("gg collision"))
+        .stdout(predicates::str::contains(".bashrc"))
+        .stdout(predicates::str::contains(".bash_login").not());
+}
+
+#[cfg(unix)]
+#[test]
+fn doctor_shell_setup_detects_an_active_bash_alias() {
+    let binary = assert_cmd::cargo::cargo_bin("gg");
+    let command = format!(
+        "alias gg='git gui'; eval \"$(command '{}' doctor --shell bash --setup)\"",
+        binary.display()
+    );
+    let output = Command::new("bash")
+        .args(["-c", &command])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("gg is already an alias"));
+}
+
+#[cfg(unix)]
+#[test]
+fn bash_helper_refuses_an_active_gg_alias_before_using_it() {
+    let helper = format!("{}/shell/gg.bash", env!("CARGO_MANIFEST_DIR"));
+    let command = format!("alias gg='printf alias-hit'; source '{helper}'");
+    let output = Command::new("bash")
+        .args(["-c", &command])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unalias gg"));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("alias-hit"));
+}
+
+#[cfg(unix)]
+#[test]
+fn fish_setup_and_helper_are_idempotent_and_refuse_collisions() {
+    if Command::new("fish").arg("--version").output().is_err() {
+        return;
+    }
+
+    let binary = assert_cmd::cargo::cargo_bin("gg");
+    let helper = format!("{}/shell/gg.fish", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}:{}",
+        binary.parent().unwrap().display(),
+        std::env::var("PATH").unwrap()
+    );
+    let command = format!(
+        "command gg doctor --shell fish --setup | source; source '{helper}'; set first_count (complete -c gg | count); command gg doctor --shell fish --setup | source; source '{helper}'; set second_count (complete -c gg | count); test \"$first_count\" = \"$second_count\""
+    );
+    let output = Command::new("fish")
+        .args(["-c", &command])
+        .env("PATH", &path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let collision = Command::new("fish")
+        .args(["-c", &format!("function gg; end; source '{helper}'")])
+        .output()
+        .unwrap();
+    assert!(!collision.status.success());
+    assert!(String::from_utf8_lossy(&collision.stderr).contains("functions -e gg"));
+
+    for source in [
+        "command gg doctor --shell fish --setup | source",
+        &format!("source '{helper}'"),
+    ] {
+        let regex_collision = Command::new("fish")
+            .args([
+                "-c",
+                &format!("abbr --add --regex 'g\\Kg' gitgui 'git gui'; {source}"),
+            ])
+            .env("PATH", &path)
+            .output()
+            .unwrap();
+        assert!(!regex_collision.status.success());
+        assert!(String::from_utf8_lossy(&regex_collision.stderr)
+            .contains("abbreviation expands top-level gg"));
+
+        let scoped_abbreviation = Command::new("fish")
+            .args([
+                "-c",
+                &format!("abbr --add --command git gg checkout; {source}"),
+            ])
+            .env("PATH", &path)
+            .output()
+            .unwrap();
+        assert!(scoped_abbreviation.status.success());
+
+        let commandless_abbreviation = Command::new("fish")
+            .args([
+                "-c",
+                &format!("abbr --add --command '' gg checkout; {source}"),
+            ])
+            .env("PATH", &path)
+            .output()
+            .unwrap();
+        assert!(!commandless_abbreviation.status.success());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn zsh_setup_and_helper_refuse_an_active_global_gg_alias() {
+    if Command::new("zsh").arg("--version").output().is_err() {
+        return;
+    }
+
+    let binary = assert_cmd::cargo::cargo_bin("gg");
+    let helper = format!("{}/shell/gg.zsh", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}:{}",
+        binary.parent().unwrap().display(),
+        std::env::var("PATH").unwrap()
+    );
+
+    let setup = Command::new("zsh")
+        .args([
+            "-c",
+            "alias -g gg='printf alias-hit'; eval \"$(command 'gg' doctor --shell zsh --setup)\"",
+        ])
+        .env("PATH", path)
+        .output()
+        .unwrap();
+    assert!(setup.status.success());
+    assert!(String::from_utf8_lossy(&setup.stderr).contains("unalias 'gg'"));
+    assert!(!String::from_utf8_lossy(&setup.stdout).contains("alias-hit"));
+
+    let helper_command = format!("alias -g gg='printf alias-hit'; source '{}'", helper);
+    let output = Command::new("zsh")
+        .args(["-c", &helper_command])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unalias 'gg'"));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("alias-hit"));
+
+    let remediation = Command::new("zsh")
+        .args([
+            "-c",
+            "alias -g gg='printf alias-hit'; eval \"unalias 'gg'\"; (( ! $+galiases[gg] ))",
+        ])
+        .output()
+        .unwrap();
+    assert!(remediation.status.success());
+}
+
+#[test]
 fn unknown_config_keys_surface_suggestions() {
     let f = Fixture::new();
     f.write_global_config(

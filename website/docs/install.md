@@ -66,3 +66,13 @@ irm https://github.com/chtnnh/git-gist/releases/latest/download/git-gist-install
 ```
 
 Full operator guide: [Packaging](./packaging) and [`packaging/README.md`](https://github.com/chtnnh/git-gist/blob/main/packaging/README.md).
+
+## Existing `gg` shell definitions
+
+Before enabling completions or helpers, check for a shell alias, function, or Fish abbreviation that already uses `gg`:
+
+```bash
+command 'gg' doctor --shell bash  # or zsh / fish
+```
+
+`command 'gg'` bypasses the existing definition, including a Zsh global alias, long enough to run the check. Remove or rename any reported definition before shell setup.

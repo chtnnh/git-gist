@@ -1,6 +1,17 @@
 # git-gist POSIX sh helpers (minimal)
 # Usage: . /path/to/shell/gg.sh
 
+if alias gg >/dev/null 2>&1; then
+  echo "git-gist: gg is already an alias; run 'unalias gg' and remove or rename it in your shell startup file." >&2
+  return 1 2>/dev/null || exit 1
+fi
+case "$(command -V gg 2>/dev/null)" in
+  *function*)
+    echo "git-gist: gg is already a function; remove or rename it in your shell startup file." >&2
+    return 1 2>/dev/null || exit 1
+    ;;
+esac
+
 gg_cd() {
   name="$1"
   if [ -z "$name" ]; then

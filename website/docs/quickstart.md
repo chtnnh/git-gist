@@ -51,7 +51,8 @@ gg --dry-run status -sb    # good
 Generate completions:
 
 ```bash
-gg completions zsh > ~/.zsh/completions/_gg
+command 'gg' doctor --shell zsh
+eval "$(command 'gg' doctor --shell zsh --setup)"
 ```
 
 Man pages (root + subcommands):

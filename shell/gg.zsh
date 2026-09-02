@@ -1,6 +1,19 @@
 # git-gist zsh helpers
 # Usage: source /path/to/shell/gg.zsh
 
+if (( $+aliases[gg] )); then
+  print -u2 "git-gist: gg is already an alias; run \"unalias 'gg'\" and remove or rename it in your shell startup file."
+  return 1 2>/dev/null || exit 1
+fi
+if (( $+galiases[gg] )); then
+  print -u2 "git-gist: gg is already a global alias; run \"unalias 'gg'\" and remove or rename it in your shell startup file."
+  return 1 2>/dev/null || exit 1
+fi
+if (( $+functions[gg] )); then
+  print -u2 "git-gist: gg is already a function; run 'unfunction gg' and remove or rename it in your shell startup file."
+  return 1 2>/dev/null || exit 1
+fi
+
 gg-cd() {
   local name="$1"
   if [[ -z "$name" ]]; then

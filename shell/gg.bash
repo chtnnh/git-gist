@@ -1,6 +1,15 @@
 # git-gist bash helpers
 # Usage: source /path/to/shell/gg.bash
 
+if alias gg >/dev/null 2>&1; then
+  echo "git-gist: gg is already an alias; run 'unalias gg' and remove or rename it in your shell startup file." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if declare -F gg >/dev/null 2>&1; then
+  echo "git-gist: gg is already a function; run 'unset -f gg' and remove or rename it in your shell startup file." >&2
+  return 1 2>/dev/null || exit 1
+fi
+
 # Jump to an alias path from config (requires gg + python3 or gg alias list)
 gg-cd() {
   local name="$1"

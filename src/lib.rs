@@ -42,6 +42,11 @@ pub fn run_cli(cli: Cli) -> Result<()> {
             println!("gg {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
+        Some(Commands::Doctor {
+            shell: Some(shell),
+            setup,
+            ..
+        }) => return commands::doctor::run_shell(*shell, *setup, &mut out),
         _ => {}
     }
 
@@ -71,7 +76,12 @@ pub fn run_cli(cli: Cli) -> Result<()> {
             commands::commits::run(&selection, *number, &cli, &cfg, &mut out)
         }
         Some(Commands::Worktrees) => commands::worktrees::run(&selection, &cli, &cfg, &mut out),
-        Some(Commands::Doctor { config }) => {
+        Some(Commands::Doctor {
+            config: _,
+            shell: Some(shell),
+            setup,
+        }) => commands::doctor::run_shell(*shell, *setup, &mut out),
+        Some(Commands::Doctor { config, .. }) => {
             if *config {
                 commands::doctor::run_config(&cfg, &mut out)
             } else {
@@ -124,7 +134,11 @@ fn command_needs_selection(command: &Option<Commands>) -> bool {
             | Commands::Info { .. }
             | Commands::Commits { .. }
             | Commands::Worktrees
-            | Commands::Doctor { config: false }
+            | Commands::Doctor {
+                config: false,
+                shell: None,
+                ..
+            }
             | Commands::Each { .. }
             | Commands::Sync { .. }
             | Commands::Stale { .. }
@@ -210,7 +224,12 @@ fn run_without_selection(cli: &Cli, cfg: &config::Config, out: &mut OutputCtx) -
         Some(Commands::SelfUpdate) => commands::self_update::run(out),
         Some(Commands::Hooks { action }) => commands::hooks::run(action, &[], cli, cfg, out),
         Some(Commands::Remotes { action }) => commands::remotes::run(action, &[], cli, cfg, out),
-        Some(Commands::Doctor { config: true }) => commands::doctor::run_config(cfg, out),
+        Some(Commands::Doctor {
+            shell: Some(shell),
+            setup,
+            ..
+        }) => commands::doctor::run_shell(*shell, *setup, out),
+        Some(Commands::Doctor { config: true, .. }) => commands::doctor::run_config(cfg, out),
         _ => unreachable!("command_needs_selection should be false only for the arms above"),
     }
 }
