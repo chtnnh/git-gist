@@ -1961,7 +1961,7 @@ fn bash_helper_refuses_an_active_gg_alias_before_using_it() {
     assert!(!String::from_utf8_lossy(&output.stdout).contains("alias-hit"));
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(coverage)))]
 #[test]
 fn fish_setup_and_helper_are_idempotent_and_refuse_collisions() {
     if Command::new("fish").arg("--version").output().is_err() {
