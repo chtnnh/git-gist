@@ -532,7 +532,6 @@ fn fish_abbr_defines_gg(contents: &str) -> Option<String> {
         let mut index = 1;
         let mut name = None;
         let mut command_scoped = false;
-        let mut commandless = false;
         let mut regex_matches_gg = false;
         let mut has_regex = false;
         let mut options = true;
@@ -545,15 +544,9 @@ fn fish_abbr_defines_gg(contents: &str) -> Option<String> {
                 index += 2;
             } else if options && matches!(word.as_str(), "--command" | "-c") {
                 command_scoped = true;
-                commandless |= words.get(index + 1).is_some_and(String::is_empty);
                 index += 2;
             } else if options && (word.starts_with("--command=") || word.starts_with("-c")) {
-                let value = word
-                    .strip_prefix("--command=")
-                    .or_else(|| word.strip_prefix("-c"))
-                    .unwrap_or_default();
                 command_scoped = true;
-                commandless |= value.is_empty();
                 index += 1;
             } else if options
                 && word.starts_with('-')
@@ -590,7 +583,7 @@ fn fish_abbr_defines_gg(contents: &str) -> Option<String> {
         let Some(name) = name else {
             continue;
         };
-        let is_top_level = !command_scoped || commandless;
+        let is_top_level = !command_scoped;
         if is_top_level && !has_regex {
             top_level_abbreviations.insert(name.clone());
         }
@@ -836,7 +829,7 @@ mod tests {
         assert!(fish_abbr_defines_gg("abbr --add -- gg git -e").is_some());
         assert!(fish_abbr_defines_gg("abbr --add -cgit gg checkout").is_none());
         assert!(fish_abbr_defines_gg("abbr --add --command=git gg checkout").is_none());
-        assert!(fish_abbr_defines_gg("abbr --add --command= gg checkout").is_some());
+        assert!(fish_abbr_defines_gg("abbr --add --command= gg checkout").is_none());
         assert!(fish_abbr_defines_gg("abbr --add --regex='^gg$' gitgui 'git gui'").is_some());
         assert!(fish_abbr_defines_gg("abbr --add -r'^gg$' gitgui 'git gui'").is_some());
         assert!(fish_abbr_defines_gg("abbr -ar '^gg$' gitgui 'git gui'").is_some());

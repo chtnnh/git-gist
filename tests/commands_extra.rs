@@ -2026,7 +2026,7 @@ fn fish_setup_and_helper_are_idempotent_and_refuse_collisions() {
             .env("PATH", &path)
             .output()
             .unwrap();
-        assert!(!commandless_abbreviation.status.success());
+        assert!(commandless_abbreviation.status.success());
     }
 }
 
