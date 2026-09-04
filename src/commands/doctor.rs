@@ -819,6 +819,14 @@ mod tests {
         assert!(fish_abbr_defines_gg("abbr --add gg --command git checkout").is_none());
         assert!(fish_abbr_defines_gg("abbr --rename old gg").is_none());
         assert!(fish_abbr_defines_gg("abbr --add old 'git gui'\nabbr --rename old gg").is_some());
+        assert!(fish_abbr_defines_gg(
+            "abbr 'unterminated\nabbr --erase gg\nabbr --add old 'git gui'\nabbr --rename old gg"
+        )
+        .is_some());
+        assert!(fish_abbr_defines_gg(
+            "abbr --add old 'git gui'\nabbr --rename old renamed\nabbr --rename --command git renamed gg\nabbr --rename renamed gg"
+        )
+        .is_some());
         assert!(fish_abbr_defines_gg("abbr --show\nabbr --add gg 'git gui'").is_some());
         assert!(fish_abbr_defines_gg("abbr --rename --command git old gg").is_none());
         assert!(fish_abbr_defines_gg("abbr --rename -cgit old gg").is_none());
