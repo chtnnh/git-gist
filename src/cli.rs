@@ -164,8 +164,14 @@ pub enum Commands {
     /// Health checks for selection / environment
     Doctor {
         /// Check global config (stale aliases, auto_enroll, groups)
-        #[arg(long)]
+        #[arg(long, conflicts_with = "shell")]
         config: bool,
+        /// Check a shell startup file for an existing gg alias or function
+        #[arg(long, value_enum, conflicts_with = "config")]
+        shell: Option<ShellKind>,
+        /// Print a guarded, idempotent completion setup snippet (requires --shell)
+        #[arg(long, requires = "shell")]
+        setup: bool,
     },
 
     /// Run an arbitrary shell command in each repo
@@ -310,6 +316,13 @@ pub enum Commands {
     /// External git passthrough: `gg status`, `gg pull --rebase`, …
     #[command(external_subcommand)]
     External(Vec<String>),
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ShellKind {
+    Bash,
+    Zsh,
+    Fish,
 }
 
 #[derive(Debug, Subcommand)]

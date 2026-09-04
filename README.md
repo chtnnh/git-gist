@@ -88,19 +88,22 @@ Operator guide for brew/deb/rpm/nix: [packaging/README.md](packaging/README.md).
 
 ```bash
 # bash
-eval "$(gg completions bash)"
+command 'gg' doctor --shell bash
+eval "$(command 'gg' doctor --shell bash --setup)"
 source <(curl -fsSL https://raw.githubusercontent.com/chtnnh/git-gist/main/shell/gg.bash)  # or local path
 
 # zsh
-eval "$(gg completions zsh)"
+command 'gg' doctor --shell zsh
+eval "$(command 'gg' doctor --shell zsh --setup)"
 source /path/to/git-gist/shell/gg.zsh
 
 # fish
-gg completions fish | source
+command 'gg' doctor --shell fish
+command 'gg' doctor --shell fish --setup | source
 source /path/to/git-gist/shell/gg.fish
 ```
 
-Helpers provide `gg-cd <alias>` and an optional prompt snippet.
+`doctor --shell` scans the standard persisted startup files. `command 'gg'` bypasses an existing shell alias/function, including Zsh global aliases, long enough for the setup snippet to check the active shell too. The snippets and helpers are idempotent and refuse to overwrite or use a collision; remove or rename the existing `gg` definition first. Helpers provide `gg-cd <alias>` and an optional prompt snippet.
 
 Interactive config (wizard / TUI): see the [Interactive config](https://gg.chtnnhfoundation.org/interactive.html) chapter.
 
@@ -115,7 +118,7 @@ Interactive config (wizard / TUI): see the [Interactive config](https://gg.chtnn
 | `info` | Detailed status |
 | `commits -n` | Top-N commits |
 | `worktrees` | Worktree listing |
-| `doctor` / `doctor --config` | Health checks / config hygiene |
+| `doctor` / `doctor --config` / `doctor --shell <bash|zsh|fish>` | Health checks, config hygiene, and shell collision detection |
 | `each` | Run arbitrary shell in each repo (`sh` / Windows `cmd`) |
 | `sync [--pull]` | Fetch (+ optional ff-only pull) |
 | `update` | Force enroll from `[[auto_enroll]]` (also runs automatically) |

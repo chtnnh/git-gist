@@ -4,4 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 cargo install --path . --locked --force
 echo "Installed: $(command -v gg || echo 'gg not on PATH — add ~/.cargo/bin')"
-gg version
+command 'gg' version
+case "${SHELL##*/}" in
+  bash|zsh|fish) command 'gg' doctor --shell "${SHELL##*/}" ;;
+  *) echo "Before shell setup, run: command 'gg' doctor --shell <bash|zsh|fish>" ;;
+esac

@@ -40,9 +40,9 @@ Status filters (probe each repo):
 
 ## Which commands use selection?
 
-**Yes** (discovery + filters): `overview`, `list`, `info`, `commits`, `worktrees`, `doctor` (without `--config`), `stale`, `each`, `sync`, `hooks install`, `remotes add-to`, git passthrough. When `-g` / `--tag` / `-i` / `-x` are set, human mode prints a selection summary on stderr **after** status filters (`--only-*`), so the count matches what the command will operate on.
+**Yes** (discovery + filters): `overview`, `list`, `info`, `commits`, `worktrees`, `doctor` (without `--config` or `--shell`), `stale`, `each`, `sync`, `hooks install`, `remotes add-to`, git passthrough. When `-g` / `--tag` / `-i` / `-x` are set, human mode prints a selection summary on stderr **after** status filters (`--only-*`), so the count matches what the command will operate on.
 
-**No** (ignore `--in` / `--root` / `only_*`): `update` (uses `auto_enroll` paths; enrollment also runs throttled during selection), `alias`, `group`, `tag`, `config`, `wizard`, `ui`, `hooks list`, `remotes list|add|remove|wizard|ui`, `doctor --config`, `init`/`scaffold`, `self-update`, `completions`, `man`, `version`.
+**No** (ignore `--in` / `--root` / `only_*`): `update` (uses `auto_enroll` paths; enrollment also runs throttled during selection), `alias`, `group`, `tag`, `config`, `wizard`, `ui`, `hooks list`, `remotes list|add|remove|wizard|ui`, `doctor --config` / `doctor --shell`, `init`/`scaffold`, `self-update`, `completions`, `man`, `version`.
 
 ![Selection summary + overview for `-g oss`](./images/overview-oss.png)
 
